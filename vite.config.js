@@ -23,17 +23,27 @@ function devAnalyze(env) {
         req.on('data', (c) => (body += c));
         req.on('end', async () => {
           try {
-            const { image } = JSON.parse(body || '{}');
-            if (!image?.startsWith?.('data:image/')) {
+            const parsed = JSON.parse(body || '{}');
+            const images = Array.isArray(parsed.images) ? parsed.images : (parsed.image ? [parsed.image] : []);
+            if (images.length === 0) {
               res.statusCode = 400;
               res.setHeader('content-type', 'application/json');
-              return res.end(JSON.stringify({ error: 'image inválida' }));
+              return res.end(JSON.stringify({ error: 'images/image inválida' }));
             }
-            const mediaType = image.substring(5, image.indexOf(';'));
-            const base64 = image.split(',')[1];
+            const content = [];
+            for (const image of images) {
+              if (!image?.startsWith?.('data:image/')) {
+                res.statusCode = 400;
+                res.setHeader('content-type', 'application/json');
+                return res.end(JSON.stringify({ error: 'cada imagen debe ser dataURL base64' }));
+              }
+              const mediaType = image.substring(5, image.indexOf(';'));
+              const base64 = image.split(',')[1];
+              content.push({ type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } });
+            }
             const PROMPT = `Eres un experto en reventa en Poshmark, Mercari, eBay y FB Marketplace, de ítems comprados en Ross, Marshalls, Burlington, TJ Maxx.
 
-Analiza la foto EN DETALLE: producto, logos, etiqueta (marca, código, precio sticker, Compare at/MSRP), correas, cierres, condición.
+Recibirás una o varias fotos del MISMO producto (no productos distintos). Consolida TODA la información visible.
 
 Devuelve SOLO un JSON válido, sin markdown:
 
@@ -44,6 +54,7 @@ Devuelve SOLO un JSON válido, sin markdown:
   "category": "cartera|ropa|zapatos|accesorios|otro",
   "color": "color principal",
   "material": "material estimado o ''",
+  "size": "talla si aparece o ''",
   "condition": "Nuevo con etiqueta|Nuevo sin etiqueta|Excelente|Buena|Usado",
   "features": "3-5 características separadas por coma",
   "store": "Ross|Marshalls|Burlington|TJ Maxx|Otro|null",
@@ -55,17 +66,16 @@ Devuelve SOLO un JSON válido, sin markdown:
   "notes": "resumen de 1-2 frases para listing"
 }
 
-Reglas de suggested_sale_price (basado en datos reales de reventa, no un % fijo):
-- Luxury/designer (Coach, MK, Kate Spade, Tory Burch, Marc Jacobs): 40-65% del MSRP si NWT
-- Premium (Tommy Hilfiger, Calvin Klein, Guess, Nine West, Steve Madden): 35-55% del MSRP
+Reglas de suggested_sale_price:
+- Luxury/designer (Coach, MK, Kate Spade, Tory Burch): 40-65% del MSRP si NWT
+- Premium (Tommy Hilfiger, Calvin Klein, Guess, Nine West): 35-55% del MSRP
 - Mid/fast fashion: 20-40% del MSRP
-- Sin marca reconocida: precio tienda + pequeño margen
-- Si no hay MSRP pero sí tag_price: +50-120% sobre tag_price según marca
-- Carteras/bolsas mantienen valor mejor que ropa
+- Sin marca: precio tienda + pequeño margen
+- Si hay tag_price sin MSRP: +50-120% según marca
 - "Nuevo con etiqueta" = tope del rango; "Buena"/"Usado" = -30-50%
-- Redondea a .99, .95 o entero
 
-Si no puedes leer algo con seguridad, pon '' o null. No inventes.`;
+Si no puedes leer algo con seguridad, pon '' o null. NO inventes.`;
+            content.push({ type: 'text', text: PROMPT });
             const r = await fetch('https://api.anthropic.com/v1/messages', {
               method: 'POST',
               headers: {
@@ -75,14 +85,8 @@ Si no puedes leer algo con seguridad, pon '' o null. No inventes.`;
               },
               body: JSON.stringify({
                 model: 'claude-sonnet-4-5',
-                max_tokens: 1200,
-                messages: [{
-                  role: 'user',
-                  content: [
-                    { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-                    { type: 'text', text: PROMPT },
-                  ],
-                }],
+                max_tokens: 1400,
+                messages: [{ role: 'user', content }],
               }),
             });
             if (!r.ok) {

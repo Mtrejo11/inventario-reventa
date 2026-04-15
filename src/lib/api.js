@@ -113,11 +113,14 @@ export async function removePromoUrl(productId, url) {
 
 // -------- Claude Vision --------
 
-export async function analyzeImage(dataUrl) {
+// Acepta dataUrl (string) o array de dataUrls. Manda todas a Claude en un solo call.
+export async function analyzeImage(input) {
+  const images = Array.isArray(input) ? input.filter(Boolean) : (input ? [input] : []);
+  if (images.length === 0) throw new Error('Se requiere al menos una imagen');
   const res = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ image: dataUrl })
+    body: JSON.stringify({ images })
   });
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));

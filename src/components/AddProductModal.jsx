@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { money, fileToDataUrl } from '../lib/utils.js';
+import { money, fileToDataUrl, urlToDataUrl } from '../lib/utils.js';
 import { analyzeImage, uploadPhoto, removeStoragePath } from '../lib/api.js';
 
 const CATEGORIES = ['cartera', 'ropa', 'zapatos', 'accesorios', 'otro'];
@@ -57,55 +57,109 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
       const data = await fileToDataUrl(f, 1280, 0.85);
       setPendingDataUrl(data);
       setPhotoUrl(data);
-      setAiMsg('Analizando imagen con Claude...');
-      try {
-        const out = await analyzeImage(data);
-        setForm(prev => {
-          const notesParts = [];
-          if (out.notes) notesParts.push(out.notes);
-          if (out.features) notesParts.push(out.features);
-          if (out.material) notesParts.push('Material: ' + out.material);
-          if (out.model) notesParts.push('Modelo: ' + out.model);
-          if (out.style_code) notesParts.push('Código: ' + out.style_code);
-          if (out.original_retail) notesParts.push('MSRP: $' + Number(out.original_retail).toFixed(2));
-          if (out.price_reasoning) notesParts.push('💡 ' + out.price_reasoning);
-          const richNotes = notesParts.filter(Boolean).join(' · ');
 
-          const claudePrice = Number(out.suggested_sale_price) > 0 ? Number(out.suggested_sale_price) : null;
-          const fallbackPrice = out.original_retail
-            ? Math.round(Number(out.original_retail) * 0.55 * 100) / 100
-            : null;
-          const suggestedPrice = claudePrice ?? fallbackPrice;
-
-          return {
-            ...prev,
-            name: prev.name || out.name || prev.name,
-            brand: prev.brand || out.brand || prev.brand,
-            category: CATEGORIES.includes(out.category) ? out.category : prev.category,
-            color: prev.color || out.color || prev.color,
-            condition: CONDITIONS.includes(out.condition) ? out.condition : prev.condition,
-            store: (out.store && STORES.includes(out.store)) ? out.store : prev.store,
-            cost: prev.cost !== '' && prev.cost != null ? prev.cost : (out.tag_price ?? prev.cost),
-            price: prev.price !== '' && prev.price != null && prev.price !== 0 ? prev.price : (suggestedPrice ?? prev.price),
-            notes: prev.notes || richNotes || prev.notes,
-          };
-        });
-        const bits = [out.brand, out.name || 'producto'].filter(Boolean).join(' — ');
-        const priceBit = out.tag_price ? ` · Etiqueta $${out.tag_price}` : '';
-        const msrpBit = out.original_retail ? ` · MSRP $${out.original_retail}` : '';
-        const sugBit = out.suggested_sale_price ? ` · Sugerido $${out.suggested_sale_price}` : '';
-        setAiMsg(`✨ ${bits}${priceBit}${msrpBit}${sugBit}`);
-      } catch (err) {
-        setAiMsg('No se pudo analizar la imagen: ' + err.message);
-      } finally {
-        setAiLoading(false);
+      // Reunir todas las fotos disponibles (la nueva principal + los extras actuales)
+      const photos = [data];
+      for (const ex of extras) {
+        if (!ex) continue;
+        if (ex.pendingDataUrl) photos.push(ex.pendingDataUrl);
+        else if (ex.url) {
+          try { photos.push(await urlToDataUrl(ex.url)); } catch {}
+        }
       }
+      await runAnalysis(photos);
     } catch (err) {
       setAiLoading(false);
       setAiMsg('');
       onToast('Error cargando foto: ' + err.message);
     }
   };
+
+  // Centraliza la llamada a Claude y el relleno del form
+  const runAnalysis = async (photos) => {
+    if (!photos || photos.length === 0) return;
+    setAiLoading(true);
+    setAiMsg(`Analizando ${photos.length} foto${photos.length > 1 ? 's' : ''} con Claude...`);
+    try {
+      const out = await analyzeImage(photos);
+      setForm(prev => {
+        const notesParts = [];
+        if (out.notes) notesParts.push(out.notes);
+        if (out.features) notesParts.push(out.features);
+        if (out.material) notesParts.push('Material: ' + out.material);
+        if (out.size) notesParts.push('Talla: ' + out.size);
+        if (out.model) notesParts.push('Modelo: ' + out.model);
+        if (out.style_code) notesParts.push('Código: ' + out.style_code);
+        if (out.original_retail) notesParts.push('MSRP: $' + Number(out.original_retail).toFixed(2));
+        if (out.price_reasoning) notesParts.push('💡 ' + out.price_reasoning);
+        const richNotes = notesParts.filter(Boolean).join(' · ');
+
+        const claudePrice = Number(out.suggested_sale_price) > 0 ? Number(out.suggested_sale_price) : null;
+        const fallbackPrice = out.original_retail
+          ? Math.round(Number(out.original_retail) * 0.55 * 100) / 100
+          : null;
+        const suggestedPrice = claudePrice ?? fallbackPrice;
+
+        return {
+          ...prev,
+          name: prev.name || out.name || prev.name,
+          brand: prev.brand || out.brand || prev.brand,
+          category: CATEGORIES.includes(out.category) ? out.category : prev.category,
+          color: prev.color || out.color || prev.color,
+          condition: CONDITIONS.includes(out.condition) ? out.condition : prev.condition,
+          store: (out.store && STORES.includes(out.store)) ? out.store : prev.store,
+          cost: prev.cost !== '' && prev.cost != null ? prev.cost : (out.tag_price ?? prev.cost),
+          price: prev.price !== '' && prev.price != null && prev.price !== 0 ? prev.price : (suggestedPrice ?? prev.price),
+          notes: prev.notes || richNotes || prev.notes,
+        };
+      });
+      const bits = [out.brand, out.name || 'producto'].filter(Boolean).join(' — ');
+      const priceBit = out.tag_price ? ` · Etiqueta $${out.tag_price}` : '';
+      const msrpBit = out.original_retail ? ` · MSRP $${out.original_retail}` : '';
+      const sugBit = out.suggested_sale_price ? ` · Sugerido $${out.suggested_sale_price}` : '';
+      setAiMsg(`✨ ${bits}${priceBit}${msrpBit}${sugBit}`);
+    } catch (err) {
+      setAiMsg('No se pudo analizar: ' + err.message);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // Re-analizar usando todas las fotos disponibles (principal + extras)
+  const reAnalyze = async () => {
+    setAiLoading(true);
+    setAiMsg('Recolectando fotos...');
+    try {
+      const photos = [];
+      if (pendingDataUrl) photos.push(pendingDataUrl);
+      else if (item?.photo_url) {
+        try { photos.push(await urlToDataUrl(item.photo_url)); } catch {}
+      }
+      for (const ex of extras) {
+        if (!ex) continue;
+        if (ex.pendingDataUrl) photos.push(ex.pendingDataUrl);
+        else if (ex.url) {
+          try { photos.push(await urlToDataUrl(ex.url)); } catch {}
+        }
+      }
+      if (photos.length === 0) {
+        setAiLoading(false);
+        setAiMsg('');
+        onToast('Sube al menos una foto antes de analizar');
+        return;
+      }
+      await runAnalysis(photos);
+    } catch (e) {
+      setAiLoading(false);
+      setAiMsg('No se pudieron recolectar las fotos: ' + e.message);
+    }
+  };
+
+  const hasAnyPhoto = !!(
+    pendingDataUrl ||
+    item?.photo_url ||
+    extras.some(ex => ex && (ex.pendingDataUrl || ex.url))
+  );
 
   const onExtraFileChange = async (idx, e) => {
     const input = e.target;
@@ -125,6 +179,8 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
         next[idx] = { url: data, path: null, pendingDataUrl: data };
         return next;
       });
+      // Sugerencia visible al usuario sin auto-llamar a Claude
+      setAiMsg('📸 Foto extra agregada. Toca "Re-analizar" para consolidar con todas las fotos.');
     } catch (err) {
       onToast('Error cargando extra: ' + err.message);
     }
@@ -291,9 +347,26 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
               ))}
             </div>
             <div className="extras-hint">
-              Útiles para promo: vista trasera, detalle del tag, interior, cierre, costura...
+              Útiles cuando una sola foto no alcanza: prenda completa, etiqueta, marca...
             </div>
           </div>
+
+          {hasAnyPhoto && (
+            <button
+              type="button"
+              className="btn reanalyze-btn"
+              onClick={reAnalyze}
+              disabled={aiLoading}
+              title="Volver a analizar usando todas las fotos disponibles"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+              {aiLoading ? 'Analizando...' : 'Re-analizar con todas las fotos'}
+            </button>
+          )}
 
           {aiMsg && (
             <div className={'ai-banner' + (aiLoading ? ' loading' : '')}>

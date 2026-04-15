@@ -1,55 +1,55 @@
 // Vercel Serverless Function (Node runtime)
-// POST { image: dataUrl } -> objeto con campos detectados.
-// Mantiene la ANTHROPIC_API_KEY en el servidor (no se expone al cliente).
+// POST body:
+//   { images: [dataUrl, dataUrl, ...] }   (nuevo, preferido)
+//   { image: dataUrl }                     (legacy, se sigue soportando)
+// Devuelve: objeto con campos detectados consolidando todas las fotos.
 
-export const config = { maxDuration: 30 };
+export const config = { maxDuration: 45 };
 
-const PROMPT = `Eres un experto en reventa de ropa y accesorios en plataformas como Poshmark, Mercari, eBay, Facebook Marketplace y OfferUp. Conoces los precios de mercado reales para ítems comprados en Ross, Marshalls, Burlington y TJ Maxx.
+const PROMPT_MULTI = `Eres un experto en reventa en Poshmark, Mercari, eBay y FB Marketplace, de ítems comprados en Ross, Marshalls, Burlington, TJ Maxx.
 
-Analiza la foto EN DETALLE. Mira todo:
-- El producto en sí (tipo, forma, material, herraje, costuras, detalles)
+Recibirás una o varias fotos del MISMO producto desde distintos ángulos/planos (ej. una foto del producto completo, otra de la etiqueta, otra del detalle de la marca). NO son productos distintos — consolida TODA la información visible en una sola ficha.
+
+Mira con detalle:
+- El producto completo (tipo, forma, material, herraje, costuras, cuello/mangas/escote si es ropa)
 - Logos visibles en el producto
-- La etiqueta colgante: marca, código de estilo, precio actual (sticker de Ross/Marshalls/etc), "Compare at" / MSRP
-- Correas, cierres, bolsillos, hebillas, acabados
+- La etiqueta colgante: marca impresa, código de estilo, precio actual (sticker de Ross/Marshalls/etc), "Compare at" / MSRP, talla si aparece
+- Correas, cierres, bolsillos, hebillas
+- Etiqueta interior si se ve (composición de material, país, talla)
 - Estado general (NWT, signos de uso, etc.)
 
-Devuelve SOLO un JSON válido, sin markdown ni explicaciones, con esta estructura EXACTA:
+Devuelve SOLO un JSON válido, sin markdown ni explicaciones:
 
 {
-  "name": "nombre descriptivo corto pero específico en español (ej: 'Crossbody camera bag Tommy Hilfiger negra con correa tricolor')",
-  "brand": "marca exacta visible, o '' si no se ve",
-  "model": "nombre/código del modelo si aparece en la etiqueta, o ''",
+  "name": "nombre descriptivo corto pero específico en español",
+  "brand": "marca exacta o ''",
+  "model": "modelo/código o ''",
   "category": "cartera|ropa|zapatos|accesorios|otro",
   "color": "color(es) principal(es)",
   "material": "material estimado o ''",
+  "size": "talla si aparece (S/M/L, 32, 8, etc.) o ''",
   "condition": "Nuevo con etiqueta|Nuevo sin etiqueta|Excelente|Buena|Usado",
-  "features": "3-5 características clave separadas por coma, útiles para vender",
-  "store": "Ross|Marshalls|Burlington|TJ Maxx|Otro|null (SOLO si el sticker es visible)",
-  "tag_price": número USD del sticker de la tienda o null,
-  "original_retail": número USD del 'Compare at'/MSRP si aparece o null,
-  "style_code": "código de estilo o ''",
-  "suggested_sale_price": número USD — precio de venta sugerido razonable en el mercado secundario (Poshmark/Mercari/FB Marketplace),
-  "price_reasoning": "1 frase corta explicando el precio sugerido (marca, condición, comparables)",
-  "notes": "resumen de 1-2 frases útil para listing de venta"
+  "features": "3-5 características separadas por coma",
+  "store": "Ross|Marshalls|Burlington|TJ Maxx|Otro|null",
+  "tag_price": número USD del sticker o null,
+  "original_retail": número USD del Compare at/MSRP o null,
+  "style_code": "código o ''",
+  "suggested_sale_price": número USD — precio de venta realista en mercado secundario,
+  "price_reasoning": "1 frase corta con razón del precio",
+  "notes": "resumen de 1-2 frases para listing"
 }
 
-Reglas para "suggested_sale_price":
-- Tiene que reflejar lo que realmente pagan los compradores en reventa, NO un % fijo del MSRP.
-- Considera el tier de marca:
-  - Luxury/designer (Coach, MK, Kate Spade, Tory Burch, Marc Jacobs): 40-65% del MSRP si NWT
-  - Premium mainstream (Tommy Hilfiger, Calvin Klein, Guess, Nine West, Steve Madden): 35-55% del MSRP si NWT
-  - Mid/fast fashion (marcas de Ross sin reconocimiento): 20-40% del MSRP
-  - Sin marca o desconocida: cerca del precio de tienda + pequeño margen
-- Si hay tag_price pero no MSRP, suma 50-120% sobre tag_price según marca/categoría.
-- Carteras y bolsas mantienen valor mejor que ropa; zapatos mantienen valor moderado.
-- Condición "Nuevo con etiqueta" = máximo del rango; "Buena" o "Usado" = -30-50%.
-- El precio debe ser número puro (ej. 35, 44.99), redondeado a .99, .95 o entero.
+Reglas de suggested_sale_price:
+- Luxury/designer (Coach, MK, Kate Spade, Tory Burch, Marc Jacobs): 40-65% del MSRP si NWT
+- Premium (Tommy Hilfiger, Calvin Klein, Guess, Nine West, Steve Madden): 35-55% del MSRP
+- Mid/fast fashion: 20-40% del MSRP
+- Sin marca reconocida: precio tienda + pequeño margen
+- Si no hay MSRP pero sí tag_price: +50-120% sobre tag_price según marca
+- Carteras/bolsas mantienen valor mejor que ropa
+- "Nuevo con etiqueta" = tope del rango; "Buena"/"Usado" = -30-50%
+- Redondea a .99, .95 o entero
 
-Reglas generales:
-- Si no puedes leer algo con seguridad, pon '' o null. No inventes.
-- Precios como números puros (21.99, no "$21.99").
-- "name" debe incluir marca + tipo + color/detalle cuando sea posible.
-- Sé específico: "crossbody", "tote", "clutch", "hobo" en vez de solo "cartera".`;
+Si no puedes leer algo con seguridad, pon '' o null. NO inventes. Usa la evidencia de TODAS las fotos combinadas.`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -60,23 +60,30 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Falta ANTHROPIC_API_KEY en el servidor' });
   }
   try {
-    const { image } = req.body || {};
-    if (!image || typeof image !== 'string' || !image.startsWith('data:image/')) {
-      return res.status(400).json({ error: 'Se requiere image (dataURL base64)' });
+    const body = req.body || {};
+    const images = Array.isArray(body.images) ? body.images : (body.image ? [body.image] : []);
+    if (images.length === 0) {
+      return res.status(400).json({ error: 'Se requiere images (array de dataURL) o image (dataURL)' });
     }
-    const mediaType = image.substring(5, image.indexOf(';'));
-    const base64 = image.split(',')[1];
+    // Valida y arma el contenido
+    const content = [];
+    for (const image of images) {
+      if (typeof image !== 'string' || !image.startsWith('data:image/')) {
+        return res.status(400).json({ error: 'Cada image debe ser dataURL base64' });
+      }
+      const mediaType = image.substring(5, image.indexOf(';'));
+      const base64 = image.split(',')[1];
+      content.push({
+        type: 'image',
+        source: { type: 'base64', media_type: mediaType, data: base64 }
+      });
+    }
+    content.push({ type: 'text', text: PROMPT_MULTI });
 
-    const body = {
+    const requestBody = {
       model: 'claude-sonnet-4-5',
-      max_tokens: 1200,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-          { type: 'text', text: PROMPT }
-        ]
-      }]
+      max_tokens: 1400,
+      messages: [{ role: 'user', content }]
     };
 
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -86,7 +93,7 @@ export default async function handler(req, res) {
         'x-api-key': key,
         'anthropic-version': '2023-06-01'
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(requestBody)
     });
     if (!r.ok) {
       const text = await r.text();

@@ -87,6 +87,18 @@ export async function fileToDataUrl(input, maxSize = 1280, quality = 0.85) {
   });
 }
 
+// Convierte cualquier URL pública de imagen a dataURL (base64).
+// Útil para pasar fotos ya guardadas en Supabase al endpoint de análisis.
+// Redimensiona a maxSize para mantener el payload pequeño.
+export async function urlToDataUrl(url, maxSize = 1280, quality = 0.85) {
+  if (url.startsWith('data:')) return url;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('No se pudo descargar la imagen');
+  const blob = await res.blob();
+  const file = new File([blob], 'remote.jpg', { type: blob.type || 'image/jpeg' });
+  return fileToDataUrl(file, maxSize, quality);
+}
+
 // Convierte un dataURL a Blob para subir a Storage.
 export function dataUrlToBlob(dataUrl) {
   const [meta, b64] = dataUrl.split(',');

@@ -34,7 +34,26 @@ Abre http://localhost:5173
 
 ---
 
-## 2. Supabase (gratis)
+## 2. Autenticación
+
+La app requiere login. El modelo de auth es **"inventario compartido"** — cualquier usuario autenticado ve y edita el mismo inventario.
+
+### En Supabase:
+
+1. **Authentication → Providers → Email**: ya viene activado por defecto. 
+2. **Authentication → Providers → Email → Confirm email**: 
+   - **Desactívalo** si quieres testing rápido (los usuarios entran al registrarse sin verificar email).
+   - **Déjalo activado** si quieres más seguridad (los usuarios tienen que hacer click en un link antes de entrar).
+3. **Authentication → URL Configuration**: agrega tu URL de producción (`https://tu-app.vercel.app`) y `http://localhost:5173` en "Redirect URLs".
+4. **Authentication → User Management → Allow new users to sign up**: 
+   - **Déjalo activado** mientras creas las cuentas iniciales (la tuya + quien más vaya a usar).
+   - **Desactívalo después** para cerrar el registro público. Las cuentas nuevas las creas manualmente desde **Authentication → Users → Add user**.
+
+### En la app:
+
+Al arrancar, verás una pantalla de login. Crea tu primera cuenta con el toggle "Crear una" al pie del formulario.
+
+## 3. Supabase (base de datos y storage)
 
 1. Crea una cuenta en [supabase.com](https://supabase.com) y un proyecto nuevo (free tier).
 2. En **SQL Editor**, pega y corre el contenido de `supabase/schema.sql`. Crea la tabla `products` con RLS abierto (app de uso personal).
@@ -50,14 +69,14 @@ Abre http://localhost:5173
 
 ---
 
-## 3. Clave de Claude API
+## 4. Clave de Claude API
 
 1. Ve a [console.anthropic.com](https://console.anthropic.com) y crea una API Key.
 2. Guarda la clave como `ANTHROPIC_API_KEY` (se usa solo en el servidor, nunca en el cliente).
 
 ---
 
-## 4. Deploy a Vercel
+## 5. Deploy a Vercel
 
 ### Opción A — con Vercel CLI
 

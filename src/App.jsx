@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { supabaseReady } from './supabase.js';
 import { listProducts, createProduct, updateProduct, deleteProduct, appendPromoUrls } from './lib/api.js';
+import { useAuth } from './contexts/AuthContext.jsx';
+import Login from './components/Login.jsx';
 import Header from './components/Header.jsx';
 import Stats from './components/Stats.jsx';
 import Filters from './components/Filters.jsx';
@@ -11,6 +13,7 @@ import PromoPhotoModal from './components/PromoPhotoModal.jsx';
 import Toast from './components/Toast.jsx';
 
 export default function App() {
+  const { session, loading: authLoading } = useAuth();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -45,7 +48,10 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    if (session) refresh();
+    else { setProducts([]); setLoading(false); }
+  }, [session, refresh]);
 
   const filtered = useMemo(() => {
     return products.filter(it => {
@@ -144,9 +150,21 @@ export default function App() {
 
   const sellingItem = sellingId ? products.find(p => p.id === sellingId) : null;
 
+  // Auth gate
+  if (authLoading) {
+    return (
+      <div className="auth-loading">
+        <div className="spinner" />
+      </div>
+    );
+  }
+  if (!session) {
+    return <Login />;
+  }
+
   return (
     <>
-      <Header ui={ui} setUi={setUi} onAdd={openAdd} />
+      <Header ui={ui} setUi={setUi} onAdd={openAdd} user={session.user} />
       <main className="wrap main">
         {error && (
           <div className="alert">

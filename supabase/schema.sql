@@ -41,13 +41,18 @@ alter table public.products enable row level security;
 
 drop policy if exists "anon read" on public.products;
 drop policy if exists "anon write" on public.products;
+drop policy if exists "auth read" on public.products;
+drop policy if exists "auth write" on public.products;
 
-create policy "anon read"
+-- Solo usuarios autenticados. Todos los autenticados comparten el mismo inventario.
+create policy "auth read"
   on public.products for select
+  to authenticated
   using (true);
 
-create policy "anon write"
+create policy "auth write"
   on public.products for all
+  to authenticated
   using (true)
   with check (true);
 
@@ -57,15 +62,24 @@ create policy "anon write"
 --   on conflict (id) do nothing;
 -- O crea el bucket "product-photos" como PÚBLICO desde Dashboard > Storage.
 
--- Policies del bucket (bucket público). Permite subir/leer con anon.
--- En la UI: Storage > product-photos > Policies > "Allow public read" y "Allow anon uploads".
--- Como SQL (opcional):
--- create policy "public read photos"
---   on storage.objects for select
---   using (bucket_id = 'product-photos');
--- create policy "anon upload photos"
---   on storage.objects for insert
---   with check (bucket_id = 'product-photos');
--- create policy "anon delete photos"
---   on storage.objects for delete
---   using (bucket_id = 'product-photos');
+-- Policies del bucket. Bucket marcado como público (para getPublicUrl).
+-- Las escrituras SOLO para usuarios autenticados.
+-- Corre este SQL O configúralo en Storage > product-photos > Policies.
+
+drop policy if exists "anon upload product-photos" on storage.objects;
+drop policy if exists "anon delete product-photos" on storage.objects;
+
+create policy "auth upload product-photos"
+  on storage.objects for insert
+  to authenticated
+  with check (bucket_id = 'product-photos');
+
+create policy "auth delete product-photos"
+  on storage.objects for delete
+  to authenticated
+  using (bucket_id = 'product-photos');
+
+create policy "auth update product-photos"
+  on storage.objects for update
+  to authenticated
+  using (bucket_id = 'product-photos');
