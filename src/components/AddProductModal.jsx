@@ -52,25 +52,11 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
       return;
     }
     try {
-      setAiMsg('Procesando imagen...');
-      setAiLoading(true);
       const data = await fileToDataUrl(f, 1280, 0.85);
       setPendingDataUrl(data);
       setPhotoUrl(data);
-
-      // Reunir todas las fotos disponibles (la nueva principal + los extras actuales)
-      const photos = [data];
-      for (const ex of extras) {
-        if (!ex) continue;
-        if (ex.pendingDataUrl) photos.push(ex.pendingDataUrl);
-        else if (ex.url) {
-          try { photos.push(await urlToDataUrl(ex.url)); } catch {}
-        }
-      }
-      await runAnalysis(photos);
+      setAiMsg('📸 Foto lista. Toca "Analizar con Claude" cuando termines de subir fotos.');
     } catch (err) {
-      setAiLoading(false);
-      setAiMsg('');
       onToast('Error cargando foto: ' + err.message);
     }
   };
@@ -179,8 +165,7 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
         next[idx] = { url: data, path: null, pendingDataUrl: data };
         return next;
       });
-      // Sugerencia visible al usuario sin auto-llamar a Claude
-      setAiMsg('📸 Foto extra agregada. Toca "Re-analizar" para consolidar con todas las fotos.');
+      setAiMsg('📸 Foto extra agregada. Toca "Analizar con Claude" cuando termines.');
     } catch (err) {
       onToast('Error cargando extra: ' + err.message);
     }
@@ -288,7 +273,7 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
                     <div><b>Subir foto</b></div>
                     <div className="hint">
                       Toca para tomar foto o elegir archivo.<br />
-                      Claude detectará los datos automáticamente.
+                      Luego toca "Analizar con Claude" para autocompletar datos.
                     </div>
                   </div>
                 )
@@ -364,7 +349,7 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
                 <polyline points="1 20 1 14 7 14" />
                 <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
               </svg>
-              {aiLoading ? 'Analizando...' : 'Re-analizar con todas las fotos'}
+              {aiLoading ? 'Analizando...' : '✨ Analizar con Claude'}
             </button>
           )}
 
