@@ -165,10 +165,20 @@ export default function PromoPhotoModal({ item, onClose, onSaved, onToast }) {
       for (const v of list) {
         const uploadBlob = v.blob || (v.b64 ? b64ToBlob(v.b64) : null);
         if (!uploadBlob) continue;
-        const { url } = await uploadPromoPhoto(uploadBlob, item.id, `${tab}_${v.style || v.preset}`);
-        urls.push(url);
+        try {
+          const { url } = await uploadPromoPhoto(uploadBlob, item.id, `${tab}_${v.style || v.preset}`);
+          urls.push(url);
+        } catch (uploadErr) {
+          console.error('Storage upload error:', uploadErr);
+          throw new Error('Storage upload falló: ' + uploadErr.message);
+        }
       }
-      await onSaved(urls);
+      try {
+        await onSaved(urls);
+      } catch (saveErr) {
+        console.error('Products table update error:', saveErr);
+        throw new Error('Update productos falló: ' + saveErr.message);
+      }
       onToast(`✔ ${urls.length} foto${urls.length > 1 ? 's' : ''} guardada${urls.length > 1 ? 's' : ''}`);
       onClose();
     } catch (e) {

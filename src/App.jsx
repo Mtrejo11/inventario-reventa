@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { supabaseReady } from './supabase.js';
-import { listProducts, createProduct, updateProduct, deleteProduct, appendPromoUrls } from './lib/api.js';
+import { listProducts, createProduct, updateProduct, deleteProduct, appendPromoUrls, removePromoUrl } from './lib/api.js';
 import { useAuth } from './contexts/AuthContext.jsx';
 import Login from './components/Login.jsx';
 import Header from './components/Header.jsx';
@@ -10,6 +10,7 @@ import ProductGrid from './components/ProductGrid.jsx';
 import AddProductModal from './components/AddProductModal.jsx';
 import SellModal from './components/SellModal.jsx';
 import PromoPhotoModal from './components/PromoPhotoModal.jsx';
+import PromoGalleryModal from './components/PromoGalleryModal.jsx';
 import Toast from './components/Toast.jsx';
 
 export default function App() {
@@ -24,6 +25,7 @@ export default function App() {
   const [editing, setEditing] = useState(null);
   const [sellingId, setSellingId] = useState(null);
   const [promoItem, setPromoItem] = useState(null);
+  const [galleryItem, setGalleryItem] = useState(null);
 
   const showToast = useCallback((msg) => {
     setToast(msg);
@@ -186,6 +188,7 @@ export default function App() {
           onSell={handleSell}
           onUnsell={handleUnsell}
           onPromo={(item) => setPromoItem(item)}
+          onViewPromos={(item) => setGalleryItem(item)}
         />
       </main>
 
@@ -214,6 +217,24 @@ export default function App() {
           onSaved={async (urls) => {
             const updated = await appendPromoUrls(promoItem.id, urls);
             setProducts(p => p.map(x => x.id === updated.id ? updated : x));
+          }}
+        />
+      )}
+
+      {galleryItem && (
+        <PromoGalleryModal
+          item={galleryItem}
+          onClose={() => setGalleryItem(null)}
+          onRemove={async (productId, url) => {
+            const updated = await removePromoUrl(productId, url);
+            setProducts(p => p.map(x => x.id === updated.id ? updated : x));
+            // Update galleryItem in place so the modal reflects the change
+            setGalleryItem(prev => prev?.id === updated.id ? updated : prev);
+            // If no more promos, close the gallery
+            if (!updated.promo_urls || updated.promo_urls.length === 0) {
+              setGalleryItem(null);
+            }
+            showToast('Foto eliminada');
           }}
         />
       )}

@@ -1,6 +1,6 @@
 import { money } from '../lib/utils.js';
 
-export default function ProductCard({ item, onEdit, onDelete, onSell, onUnsell, onPromo }) {
+export default function ProductCard({ item, onEdit, onDelete, onSell, onUnsell, onPromo, onViewPromos }) {
   const qty = Number(item.qty || 1);
   const cost = Number(item.cost || 0);
   const price = item.sold ? Number(item.sold_price || 0) : Number(item.price || 0);
@@ -49,13 +49,20 @@ export default function ProductCard({ item, onEdit, onDelete, onSell, onUnsell, 
           <div className="sold-date">Vendido el {item.sold_date}</div>
         )}
         {Array.isArray(item.promo_urls) && item.promo_urls.length > 0 && (
-          <div className="promo-strip" title="Fotos promocionales generadas">
+          <div
+            className="promo-strip"
+            title="Ver fotos promocionales"
+            onClick={() => onViewPromos(item)}
+            style={{ cursor: 'pointer' }}
+          >
             {item.promo_urls.slice(0, 3).map((u, i) => (
               <img key={u + i} src={u} alt="promo" />
             ))}
-            {item.promo_urls.length > 3 && (
-              <span className="promo-more">+{item.promo_urls.length - 3}</span>
-            )}
+            <span className="promo-more">
+              {item.promo_urls.length > 3
+                ? `+${item.promo_urls.length - 3}`
+                : `📸 ${item.promo_urls.length}`}
+            </span>
           </div>
         )}
       </div>
