@@ -7,20 +7,20 @@
 
 import sharp from 'sharp';
 
-export const config = { maxDuration: 90 };
+export const config = { maxDuration: 120 };
 
 const STYLES = {
   studio: {
     label: 'Estudio profesional',
-    prompt: `Place this product in a professional e-commerce studio setting. Clean white/light gray seamless background, soft diffused studio lighting from above and sides creating gentle shadows. The product should be the hero — centered, well-lit, with accurate colors. High-end product photography style like you'd see on Nordstrom or Net-a-Porter. No text, no watermarks. Preserve the exact product with photographic accuracy: same shape, material, color, logo, hardware, stitching, and any patterns or textures. Every detail must be continuous and physically realistic — no broken patterns, no missing elements, no invented details.`,
+    prompt: `Professional e-commerce product photo. Clean white or light gray seamless backdrop. Soft, diffused studio lighting from above and both sides, creating gentle natural shadows beneath the product. The product is the sole hero — centered, fully open/unfolded, and displayed upright or laid flat to show its complete shape. Slightly closer crop than a full-body shot: frame the product with minimal empty space so details are clearly visible. Style reference: Nordstrom, Net-a-Porter product pages. No text, no watermarks, no props. CRITICAL: Reproduce the product with photographic accuracy — exact shape, material, color, logo placement, hardware, stitching, and any patterns or textures. Every detail must be continuous and physically realistic. Never fold, roll, or partially hide the product.`,
   },
   lifestyle: {
     label: 'Lifestyle',
-    prompt: `Create an aspirational lifestyle product photo. Place this product in a beautiful, realistic setting — a marble countertop near a window with soft natural light, or an elegant vanity, or a stylish café table. The setting should feel luxurious but not cluttered. Warm, inviting tones. The product should still be the clear focus. Instagram-worthy aesthetic. No text, no watermarks. Preserve the exact product with photographic accuracy: same shape, material, color, logo, hardware, stitching, and any patterns or textures. Every detail must be continuous and physically realistic — no broken patterns, no missing elements, no invented details.`,
+    prompt: `Aspirational lifestyle product photograph. The product is displayed fully open/unfolded in ONE of these physically realistic scenes (pick the most natural fit): hanging on a sleek wall hook or coat rack near a sunlit window; resting upright on a clean marble surface or wooden console table; laid flat on crisp white bedding with soft morning light; placed on a mid-century leather armchair. The scene must obey real-world physics — no furniture on top of other furniture, no floating objects. Keep the setting minimal and luxurious: 1-2 subtle props maximum (a small plant, a candle, a book). Warm, inviting tones. The product fills at least 60% of the frame — use a slightly tighter crop to highlight material and detail. Instagram-worthy aesthetic. No text, no watermarks. CRITICAL: Reproduce the product with photographic accuracy — exact shape, material, color, logo, hardware, stitching, patterns, and textures. Never fold, crumple, or partially obscure the product.`,
   },
   editorial: {
     label: 'Editorial / Fashion',
-    prompt: `Create a high-fashion editorial product photo. Place this product against a bold, artistic background — think Vogue or Harper's Bazaar product features. Dramatic lighting with strong shadows, rich saturated colors. Could use a solid bold color backdrop (deep plum, emerald, navy) or an abstract textured surface. The product should look premium and desirable. No text, no watermarks. Preserve the exact product with photographic accuracy: same shape, material, color, logo, hardware, stitching, and any patterns or textures. Every detail must be continuous and physically realistic — no broken patterns, no missing elements, no invented details.`,
+    prompt: `High-fashion editorial product photo. The product is displayed fully open/unfolded against a bold, single-color backdrop (deep plum, emerald green, navy blue, or rich terracotta) OR on a textured surface like raw concrete or dark slate. Dramatic directional lighting — strong key light from one side with deep, cinematic shadows. The framing is a confident close-up: the product fills 65-75% of the frame, emphasizing material texture, hardware details, and craftsmanship. Think Vogue or Harper's Bazaar product features. The product should look premium, editorial, and desirable. No props, no text, no watermarks. CRITICAL: Reproduce the product with photographic accuracy — exact shape, material, color, logo, hardware, stitching, patterns, and textures. Never fold, drape over, or partially hide the product.`,
   },
 };
 
@@ -149,53 +149,48 @@ export default async function handler(req, res) {
     // 5. Create blob from corrected image
     const imgBlob = new Blob([imgBuffer], { type: 'image/jpeg' });
 
-    // 6. Generate images for each style
-    const results = [];
+    // 6. Generate images for each style — ALL IN PARALLEL
+    const results = await Promise.all(
+      Object.entries(selectedStyles).map(async ([key_style, cfg]) => {
+        try {
+          const formData = new FormData();
+          formData.append('model', 'gpt-image-2');
+          formData.append('image[]', imgBlob, 'product.jpg');
+          formData.append('prompt', cfg.prompt + extraContext);
+          formData.append('n', '1');
+          formData.append('size', '1024x1024');
+          formData.append('quality', 'high');
 
-    for (const [key_style, cfg] of Object.entries(selectedStyles)) {
-      try {
-        const formData = new FormData();
-        formData.append('model', 'gpt-image-2');
-        formData.append('image[]', imgBlob, 'product.jpg');
-        formData.append('prompt', cfg.prompt + extraContext);
-        formData.append('n', '1');
-        formData.append('size', '1024x1024');
-        formData.append('quality', 'high');
+          const r = await fetch('https://api.openai.com/v1/images/edits', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${openaiKey}` },
+            body: formData,
+          });
 
-        const r = await fetch('https://api.openai.com/v1/images/edits', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openaiKey}`,
-          },
-          body: formData,
-        });
+          if (!r.ok) {
+            const errText = await r.text();
+            console.error(`GPT Image 2 error for style ${key_style}:`, errText);
+            return { style: key_style, label: cfg.label, error: true };
+          }
 
-        if (!r.ok) {
-          const errText = await r.text();
-          console.error(`GPT Image 2 error for style ${key_style}:`, errText);
-          results.push({ style: key_style, label: cfg.label, error: true });
-          continue;
-        }
-
-        const data = await r.json();
-        const b64 = data?.data?.[0]?.b64_json;
-        if (b64) {
-          results.push({ style: key_style, label: cfg.label, b64 });
-        } else {
+          const data = await r.json();
+          const b64 = data?.data?.[0]?.b64_json;
+          if (b64) {
+            return { style: key_style, label: cfg.label, b64 };
+          }
           const url = data?.data?.[0]?.url;
           if (url) {
             const imgFetch = await fetch(url);
             const buf = Buffer.from(await imgFetch.arrayBuffer());
-            results.push({ style: key_style, label: cfg.label, b64: buf.toString('base64') });
-          } else {
-            results.push({ style: key_style, label: cfg.label, error: true });
+            return { style: key_style, label: cfg.label, b64: buf.toString('base64') };
           }
+          return { style: key_style, label: cfg.label, error: true };
+        } catch (e) {
+          console.error(`Error generating ${key_style}:`, e.message);
+          return { style: key_style, label: cfg.label, error: true };
         }
-      } catch (e) {
-        console.error(`Error generating ${key_style}:`, e.message);
-        results.push({ style: key_style, label: cfg.label, error: true });
-      }
-    }
+      })
+    );
 
     if (results.every(r => r.error)) {
       return res.status(502).json({ error: 'No se pudo generar ninguna imagen. Verifica tu OPENAI_API_KEY.' });

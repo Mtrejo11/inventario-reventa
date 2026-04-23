@@ -29,19 +29,19 @@ function devGeneratePromo(env) {
               return res.end(JSON.stringify({ error: 'Se requiere imageUrl' }));
             }
 
-            const PRESERVE = ' Preserve the exact product: same shape, material, color, logo, hardware, and stitching.';
+            const PRESERVE = ' CRITICAL: Reproduce the product with photographic accuracy — exact shape, material, color, logo, hardware, stitching, patterns, and textures. Every detail must be continuous and physically realistic. Never fold, roll, or partially hide the product.';
             const STYLES = {
               studio: {
                 label: 'Estudio profesional',
-                prompt: 'Place this product in a professional e-commerce studio setting. Clean white/light gray seamless background, soft diffused studio lighting. The product should be centered, well-lit, with accurate colors. High-end product photography style. No text, no watermarks.' + PRESERVE,
+                prompt: 'Professional e-commerce product photo. Clean white or light gray seamless backdrop. Soft, diffused studio lighting from above and both sides, creating gentle natural shadows. The product is the sole hero — centered, fully open/unfolded, displayed upright or laid flat to show its complete shape. Slightly closer crop with minimal empty space so details are visible. Style: Nordstrom, Net-a-Porter. No text, no watermarks, no props.' + PRESERVE,
               },
               lifestyle: {
                 label: 'Lifestyle',
-                prompt: 'Create an aspirational lifestyle product photo. Place this product in a beautiful setting — marble countertop near a window with soft natural light, or an elegant vanity. Warm, inviting tones. The product should be the clear focus. Instagram-worthy aesthetic. No text, no watermarks.' + PRESERVE,
+                prompt: 'Aspirational lifestyle product photo. Product displayed fully open/unfolded in a physically realistic scene: hanging on a wall hook near a sunlit window, resting upright on a marble surface or wooden console, laid flat on crisp white bedding, or on a leather armchair. Must obey real-world physics — no furniture stacked illogically. Minimal setting, 1-2 subtle props max. Warm tones. Product fills 60%+ of frame. Instagram-worthy. No text, no watermarks.' + PRESERVE,
               },
               editorial: {
                 label: 'Editorial / Fashion',
-                prompt: 'Create a high-fashion editorial product photo. Place this product against a bold, artistic background — dramatic lighting with strong shadows, rich saturated colors. Could use a solid bold color backdrop (deep plum, emerald, navy). The product should look premium. No text, no watermarks.' + PRESERVE,
+                prompt: 'High-fashion editorial product photo. Product fully open/unfolded against a bold single-color backdrop (deep plum, emerald, navy, terracotta) or textured surface (concrete, dark slate). Dramatic directional lighting with cinematic shadows. Confident close-up: product fills 65-75% of frame, emphasizing texture and craftsmanship. Vogue/Harper\'s Bazaar style. No props, no text, no watermarks.' + PRESERVE,
               },
             };
 
@@ -136,47 +136,45 @@ PRODUCT: [1-sentence product description]` },
               extraContext += `\nProduct: ${productInfo}`;
             }
 
-            const results = [];
-            for (const [sKey, cfg] of Object.entries(selectedStyles)) {
-              try {
-                const formData = new FormData();
-                formData.append('model', 'gpt-image-2');
-                formData.append('image[]', imgBlob, 'product.jpg');
-                formData.append('prompt', cfg.prompt + extraContext);
-                formData.append('n', '1');
-                formData.append('size', '1024x1024');
-                formData.append('quality', 'high');
+            const results = await Promise.all(
+              Object.entries(selectedStyles).map(async ([sKey, cfg]) => {
+                try {
+                  const formData = new FormData();
+                  formData.append('model', 'gpt-image-2');
+                  formData.append('image[]', imgBlob, 'product.jpg');
+                  formData.append('prompt', cfg.prompt + extraContext);
+                  formData.append('n', '1');
+                  formData.append('size', '1024x1024');
+                  formData.append('quality', 'high');
 
-                const r = await fetch('https://api.openai.com/v1/images/edits', {
-                  method: 'POST',
-                  headers: { 'Authorization': `Bearer ${key}` },
-                  body: formData,
-                });
-                if (!r.ok) {
-                  const errText = await r.text();
-                  console.error(`GPT Image 2 error (${sKey}):`, errText);
-                  results.push({ style: sKey, label: cfg.label, error: true });
-                  continue;
-                }
-                const data = await r.json();
-                const b64 = data?.data?.[0]?.b64_json;
-                if (b64) {
-                  results.push({ style: sKey, label: cfg.label, b64 });
-                } else {
+                  const r = await fetch('https://api.openai.com/v1/images/edits', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${key}` },
+                    body: formData,
+                  });
+                  if (!r.ok) {
+                    const errText = await r.text();
+                    console.error(`GPT Image 2 error (${sKey}):`, errText);
+                    return { style: sKey, label: cfg.label, error: true };
+                  }
+                  const data = await r.json();
+                  const b64 = data?.data?.[0]?.b64_json;
+                  if (b64) {
+                    return { style: sKey, label: cfg.label, b64 };
+                  }
                   const url = data?.data?.[0]?.url;
                   if (url) {
                     const imgF = await fetch(url);
                     const buf = Buffer.from(await imgF.arrayBuffer());
-                    results.push({ style: sKey, label: cfg.label, b64: buf.toString('base64') });
-                  } else {
-                    results.push({ style: sKey, label: cfg.label, error: true });
+                    return { style: sKey, label: cfg.label, b64: buf.toString('base64') };
                   }
+                  return { style: sKey, label: cfg.label, error: true };
+                } catch (e) {
+                  console.error(`Error (${sKey}):`, e.message);
+                  return { style: sKey, label: cfg.label, error: true };
                 }
-              } catch (e) {
-                console.error(`Error (${sKey}):`, e.message);
-                results.push({ style: sKey, label: cfg.label, error: true });
-              }
-            }
+              })
+            );
 
             res.statusCode = 200;
             res.setHeader('content-type', 'application/json');
