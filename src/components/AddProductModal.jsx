@@ -5,7 +5,7 @@ import { analyzeImage, uploadPhoto, removeStoragePath } from '../lib/api.js';
 const CATEGORIES = ['cartera', 'ropa', 'zapatos', 'accesorios', 'otro'];
 const STORES = ['Ross', 'Marshalls', 'Burlington', 'TJ Maxx', 'Otro'];
 const CONDITIONS = ['Nuevo con etiqueta', 'Nuevo sin etiqueta', 'Excelente', 'Buena', 'Usado'];
-const MAX_EXTRAS = 2;
+const MAX_EXTRAS = 4;
 
 export default function AddProductModal({ item, onClose, onSave, onToast }) {
   const [form, setForm] = useState(() => ({
@@ -14,6 +14,7 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
     category: item?.category || 'cartera',
     store: item?.store || 'Ross',
     color: item?.color || '',
+    size: item?.size || '',
     condition: item?.condition || 'Nuevo con etiqueta',
     cost: item?.cost ?? '',
     price: item?.price ?? '',
@@ -73,7 +74,6 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
         if (out.notes) notesParts.push(out.notes);
         if (out.features) notesParts.push(out.features);
         if (out.material) notesParts.push('Material: ' + out.material);
-        if (out.size) notesParts.push('Talla: ' + out.size);
         if (out.model) notesParts.push('Modelo: ' + out.model);
         if (out.style_code) notesParts.push('Código: ' + out.style_code);
         if (out.original_retail) notesParts.push('MSRP: $' + Number(out.original_retail).toFixed(2));
@@ -92,6 +92,7 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
           brand: prev.brand || out.brand || prev.brand,
           category: CATEGORIES.includes(out.category) ? out.category : prev.category,
           color: prev.color || out.color || prev.color,
+          size: prev.size || out.size || prev.size,
           condition: CONDITIONS.includes(out.condition) ? out.condition : prev.condition,
           store: (out.store && STORES.includes(out.store)) ? out.store : prev.store,
           cost: prev.cost !== '' && prev.cost != null ? prev.cost : (out.tag_price ?? prev.cost),
@@ -215,6 +216,7 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
         category: form.category,
         store: form.store,
         color: form.color.trim() || null,
+        size: form.size.trim() || null,
         condition: form.condition,
         cost: Number(form.cost || 0),
         price: Number(form.price || 0),
@@ -272,7 +274,7 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
                     <div style={{ fontSize: 32 }}>📷</div>
                     <div><b>Subir foto</b></div>
                     <div className="hint">
-                      Toca para tomar foto o elegir archivo.<br />
+                      Toca para elegir del carrete o tomar foto.<br />
                       Luego toca "Analizar con Claude" para autocompletar datos.
                     </div>
                   </div>
@@ -283,7 +285,7 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
               ref={fileInput}
               type="file"
               accept="image/*"
-              capture="environment"
+
               style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }}
               onChange={onFileChange}
             />
@@ -324,7 +326,7 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
                     ref={(el) => { extraInputs.current[idx] = el; }}
                     type="file"
                     accept="image/*"
-                    capture="environment"
+      
                     style={{ display: 'none' }}
                     onChange={(e) => onExtraFileChange(idx, e)}
                   />
@@ -332,7 +334,7 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
               ))}
             </div>
             <div className="extras-hint">
-              Útiles cuando una sola foto no alcanza: prenda completa, etiqueta, marca...
+              Útiles cuando una sola foto no alcanza: prenda completa, etiqueta, marca, detalles...
             </div>
           </div>
 
@@ -392,10 +394,26 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
                 onChange={e => update('color', e.target.value)}
                 placeholder="Negro, rojo..." />
             </Field>
+            <Field label="Talla / Size">
+              <input type="text" value={form.size}
+                onChange={e => update('size', e.target.value)}
+                placeholder={
+                  form.category === 'zapatos' ? '7, 8.5, 10...'
+                  : form.category === 'ropa' ? 'XS, S, M, L, XL...'
+                  : 'Opcional'
+                } />
+            </Field>
+          </div>
+
+          <div className="row">
             <Field label="Condición">
               <select value={form.condition} onChange={e => update('condition', e.target.value)}>
                 {CONDITIONS.map(c => <option key={c}>{c}</option>)}
               </select>
+            </Field>
+            <Field label="Cantidad">
+              <input type="number" min="1" step="1" value={form.qty}
+                onChange={e => update('qty', e.target.value)} />
             </Field>
           </div>
 
@@ -410,17 +428,11 @@ export default function AddProductModal({ item, onClose, onSave, onToast }) {
             </Field>
           </div>
 
-          <div className="row">
-            <Field label="Cantidad">
-              <input type="number" min="1" step="1" value={form.qty}
-                onChange={e => update('qty', e.target.value)} />
-            </Field>
-            <Field label="Notas">
-              <input type="text" value={form.notes}
-                onChange={e => update('notes', e.target.value)}
-                placeholder="Detalles, defectos, etc." />
-            </Field>
-          </div>
+          <Field label="Notas">
+            <input type="text" value={form.notes}
+              onChange={e => update('notes', e.target.value)}
+              placeholder="Detalles, defectos, etc." />
+          </Field>
 
           <div className="margin-preview">
             <span>Ganancia estimada: <b>{money(gain)}</b></span>

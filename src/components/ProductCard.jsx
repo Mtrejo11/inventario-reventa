@@ -31,6 +31,7 @@ export default function ProductCard({ item, onEdit, onDelete, onSell, onUnsell, 
         <div className="meta">
           {item.brand && <span className="chip">{item.brand}</span>}
           <span className="chip">{item.category || 'otro'}</span>
+          {item.size && <span className="chip">Talla {item.size}</span>}
           {item.store && <span className="chip">{item.store}</span>}
           {qty > 1 && <span className="chip">×{qty}</span>}
         </div>

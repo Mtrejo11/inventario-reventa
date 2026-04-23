@@ -43,11 +43,11 @@ export default function Login() {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <div className="login-logo">📦 <span>Inventario</span></div>
+        <div className="login-logo">PICKED<span className="picked-star">*</span></div>
         <h1>{mode === 'signin' ? 'Entrar a tu cuenta' : 'Crear cuenta'}</h1>
         <p className="login-sub">
           {mode === 'signin'
-            ? 'Accede a tu inventario de reventa.'
+            ? 'Accede a tu inventario curado.'
             : 'Regístrate con email y contraseña.'}
         </p>
 

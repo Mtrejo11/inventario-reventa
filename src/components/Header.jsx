@@ -28,7 +28,7 @@ export default function Header({ ui, setUi, onAdd, user }) {
   return (
     <header className="app-header">
       <div className="wrap topbar">
-        <div className="logo">📦 <span>Inventario</span></div>
+        <div className="logo"><span className="picked-text">PICKED</span><span className="picked-star">*</span></div>
         <div className="spacer" />
         <div className="tabs">
           {tabs.map(t => (

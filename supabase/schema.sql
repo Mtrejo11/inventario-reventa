@@ -29,6 +29,7 @@ create table if not exists public.products (
 alter table public.products add column if not exists promo_urls text[] not null default '{}';
 alter table public.products add column if not exists extra_photo_urls text[] not null default '{}';
 alter table public.products add column if not exists extra_photo_paths text[] not null default '{}';
+alter table public.products add column if not exists size text;
 
 -- Índices útiles
 create index if not exists products_created_at_idx on public.products (created_at desc);

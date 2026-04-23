@@ -1,1 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#7c5cff"/><text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" font-size="34" font-family="Apple Color Emoji,Segoe UI Emoji">📦</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#2e1a47"/>
+  <text x="22" y="46" font-size="38" font-weight="900" font-family="system-ui,Helvetica,Arial,sans-serif" fill="#ffffff" letter-spacing="0">P</text>
+  <g stroke="#c9b8db" stroke-width="2.5" stroke-linecap="round">
+    <line x1="50" y1="14" x2="50" y2="24"/>
+    <line x1="45" y1="19" x2="55" y2="19"/>
+    <line x1="46.5" y1="15.5" x2="53.5" y2="22.5"/>
+    <line x1="53.5" y1="15.5" x2="46.5" y2="22.5"/>
+  </g>
+</svg>

@@ -57,23 +57,115 @@ async function normalizeHeic(file) {
   }
 }
 
+// Lee el tag de orientación EXIF de un ArrayBuffer JPEG.
+// Devuelve 1-8 (1 = normal). Solo lee el mínimo necesario.
+function readExifOrientation(buffer) {
+  const view = new DataView(buffer);
+  // Verificar marcador JPEG SOI
+  if (view.getUint16(0) !== 0xFFD8) return 1;
+  let offset = 2;
+  while (offset < view.byteLength - 2) {
+    const marker = view.getUint16(offset);
+    if (marker === 0xFFE1) {
+      // APP1 (EXIF)
+      const len = view.getUint16(offset + 2);
+      const exifStart = offset + 4;
+      // Verificar "Exif\0\0"
+      if (view.getUint32(exifStart) !== 0x45786966 || view.getUint16(exifStart + 4) !== 0x0000) return 1;
+      const tiffStart = exifStart + 6;
+      const bigEndian = view.getUint16(tiffStart) === 0x4D4D;
+      const get16 = (o) => bigEndian ? view.getUint16(o) : view.getUint16(o, true);
+      const ifdOffset = tiffStart + (bigEndian ? view.getUint32(tiffStart + 4) : view.getUint32(tiffStart + 4, true));
+      const entries = get16(ifdOffset);
+      for (let i = 0; i < entries; i++) {
+        const entryOff = ifdOffset + 2 + i * 12;
+        if (get16(entryOff) === 0x0112) {
+          // Orientation tag
+          return get16(entryOff + 8);
+        }
+      }
+      return 1;
+    } else if ((marker & 0xFF00) !== 0xFF00) {
+      return 1; // no es marcador válido
+    } else {
+      offset += 2 + view.getUint16(offset + 2);
+    }
+  }
+  return 1;
+}
+
+// Aplica transformación de orientación EXIF al canvas.
+// Modifica canvas.width/height y aplica transform al contexto ANTES de drawImage.
+function applyExifOrientation(ctx, canvas, orientation, w, h) {
+  // orientaciones: https://sirv.com/help/articles/rotate-photos-to-be-upright/
+  switch (orientation) {
+    case 2: // flip horizontal
+      canvas.width = w; canvas.height = h;
+      ctx.transform(-1, 0, 0, 1, w, 0);
+      break;
+    case 3: // rotate 180
+      canvas.width = w; canvas.height = h;
+      ctx.transform(-1, 0, 0, -1, w, h);
+      break;
+    case 4: // flip vertical
+      canvas.width = w; canvas.height = h;
+      ctx.transform(1, 0, 0, -1, 0, h);
+      break;
+    case 5: // transpose (rotate 90 CW + flip horizontal)
+      canvas.width = h; canvas.height = w;
+      ctx.transform(0, 1, 1, 0, 0, 0);
+      break;
+    case 6: // rotate 90 CW
+      canvas.width = h; canvas.height = w;
+      ctx.transform(0, 1, -1, 0, h, 0);
+      break;
+    case 7: // transverse (rotate 90 CCW + flip horizontal)
+      canvas.width = h; canvas.height = w;
+      ctx.transform(0, -1, -1, 0, h, w);
+      break;
+    case 8: // rotate 90 CCW
+      canvas.width = h; canvas.height = w;
+      ctx.transform(0, -1, 1, 0, 0, w);
+      break;
+    default: // 1 = normal, no transform
+      canvas.width = w; canvas.height = h;
+      break;
+  }
+}
+
 // Convierte un File a dataURL redimensionado (JPEG) para reducir tamaño.
+// Aplica corrección de orientación EXIF automáticamente.
 export async function fileToDataUrl(input, maxSize = 1280, quality = 0.85) {
   const file = await normalizeHeic(input);
+
+  // 1. Leer EXIF orientation del archivo original
+  const arrBuf = await file.arrayBuffer();
+  const orientation = readExifOrientation(arrBuf);
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
         try {
-          const canvas = document.createElement('canvas');
-          let { width, height } = img;
-          if (width > maxSize || height > maxSize) {
-            const r = Math.min(maxSize / width, maxSize / height);
-            width *= r; height *= r;
+          let { naturalWidth: w, naturalHeight: h } = img;
+
+          // 2. Redimensionar si es necesario (basado en dimensiones originales)
+          if (w > maxSize || h > maxSize) {
+            const r = Math.min(maxSize / w, maxSize / h);
+            w = Math.round(w * r);
+            h = Math.round(h * r);
           }
-          canvas.width = width; canvas.height = height;
-          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+
+          // 3. Aplicar transformación EXIF (ajusta canvas.width/height y ctx transform)
+          applyExifOrientation(ctx, canvas, orientation, w, h);
+
+          // 4. Dibujar la imagen (el transform del contexto la rota correctamente)
+          ctx.drawImage(img, 0, 0, w, h);
+
           resolve(canvas.toDataURL('image/jpeg', quality));
         } catch (e) {
           reject(new Error('No se pudo procesar la imagen: ' + (e?.message || e)));
