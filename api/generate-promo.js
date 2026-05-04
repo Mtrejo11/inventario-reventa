@@ -7,7 +7,7 @@
 
 import sharp from 'sharp';
 
-export const config = { maxDuration: 120 };
+export const config = { maxDuration: 300 };
 
 const STYLES = {
   studio: {
