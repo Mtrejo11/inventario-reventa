@@ -20,6 +20,8 @@ function devGeneratePromo(env) {
         let body = '';
         req.on('data', (c) => (body += c));
         req.on('end', async () => {
+          const tStart = Date.now();
+          const ms = (t) => `${((Date.now() - t) / 1000).toFixed(1)}s`;
           try {
             const parsed = JSON.parse(body || '{}');
             const { imageUrl, style, rotation: manualRotation } = parsed;
@@ -50,18 +52,35 @@ function devGeneratePromo(env) {
               : STYLES;
 
             // Download the source image
+            const tDownload = Date.now();
             const imgRes = await fetch(imageUrl);
             if (!imgRes.ok) throw new Error('No se pudo descargar la imagen');
             let imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+            console.log(`[timing] Download: ${ms(tDownload)}`);
 
-            // Auto-orientation with Claude Vision + sharp
+            const sharp = (await import('sharp')).default;
+
+            // Step 1: ALWAYS apply EXIF rotation + manual rotation FIRST.
+            // This guarantees the buffer sent to OpenAI matches what the user sees.
+            const tRotate = Date.now();
+            const validManual = [90, 180, 270].includes(manualRotation) ? manualRotation : 0;
+            console.log(`[generate-promo] manualRotation=${manualRotation} → applying ${validManual}° (after EXIF)`);
+            imgBuffer = await sharp(imgBuffer)
+              .rotate() // EXIF auto-orient
+              .toBuffer();
+            if (validManual !== 0) {
+              imgBuffer = await sharp(imgBuffer).rotate(validManual).jpeg({ quality: 92 }).toBuffer();
+            } else {
+              imgBuffer = await sharp(imgBuffer).jpeg({ quality: 92 }).toBuffer();
+            }
+            console.log(`[timing] Rotation: ${ms(tRotate)}`);
+
+            // Step 2: Optional Claude analysis on the ALREADY-rotated buffer (for strap context).
+            // Auto-rotation only kicks in when there's no manual rotation.
             let strapInfo = '';
             let productInfo = '';
+            const tAnalysis = Date.now();
             try {
-              const sharp = (await import('sharp')).default;
-              // Fix EXIF rotation first
-              imgBuffer = await sharp(imgBuffer).rotate().jpeg({ quality: 92 }).toBuffer();
-
               const anthropicKey = env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
               if (anthropicKey) {
                 const smallBuf = await sharp(imgBuffer).resize(512, 512, { fit: 'inside' }).jpeg({ quality: 80 }).toBuffer();
@@ -93,14 +112,14 @@ PRODUCT: [1-sentence product description]` },
                   const oj = await orientRes.json();
                   const rawText = oj?.content?.[0]?.text || '';
                   console.log('[generate-promo] Claude analysis:', rawText);
-                  const rotMatch = rawText.match(/ROTATION:\s*(\d+)/);
-                  const aiDeg = rotMatch ? parseInt(rotMatch[1], 10) : 0;
-                  // Manual rotation takes priority over AI detection
-                  const effectiveDeg = (manualRotation && [90, 180, 270].includes(manualRotation))
-                    ? manualRotation : aiDeg;
-                  if ([90, 180, 270].includes(effectiveDeg)) {
-                    console.log(`[generate-promo] Rotating ${effectiveDeg}° (${manualRotation ? 'manual' : 'auto'})`);
-                    imgBuffer = await sharp(imgBuffer).rotate(effectiveDeg).jpeg({ quality: 92 }).toBuffer();
+                  // Only auto-rotate when user did NOT specify a manual rotation
+                  if (validManual === 0) {
+                    const rotMatch = rawText.match(/ROTATION:\s*(\d+)/);
+                    const aiDeg = rotMatch ? parseInt(rotMatch[1], 10) : 0;
+                    if ([90, 180, 270].includes(aiDeg)) {
+                      console.log(`[generate-promo] Auto-rotating ${aiDeg}° (Claude detection)`);
+                      imgBuffer = await sharp(imgBuffer).rotate(aiDeg).jpeg({ quality: 92 }).toBuffer();
+                    }
                   }
                   const strapMatch = rawText.match(/STRAP:\s*(.+?)(?=\nPRODUCT:|$)/s);
                   if (strapMatch && strapMatch[1].trim().toLowerCase() !== 'none') {
@@ -111,16 +130,9 @@ PRODUCT: [1-sentence product description]` },
                 }
               }
             } catch (e) {
-              console.warn('[generate-promo] Orientation fix error:', e.message);
-              // Still apply manual rotation even if analysis failed
-              if (manualRotation && [90, 180, 270].includes(manualRotation)) {
-                try {
-                  const sharp = (await import('sharp')).default;
-                  console.log(`[generate-promo] Applying manual rotation ${manualRotation}° (fallback)`);
-                  imgBuffer = await sharp(imgBuffer).rotate(manualRotation).jpeg({ quality: 92 }).toBuffer();
-                } catch {}
-              }
+              console.warn('[generate-promo] Claude analysis error (non-fatal):', e.message);
             }
+            console.log(`[timing] Claude analysis: ${ms(tAnalysis)}`);
 
             const imgBlob = new Blob([imgBuffer], { type: 'image/jpeg' });
 
@@ -136,8 +148,11 @@ PRODUCT: [1-sentence product description]` },
               extraContext += `\nProduct: ${productInfo}`;
             }
 
+            const tGenAll = Date.now();
+            console.log(`[timing] Starting ${Object.keys(selectedStyles).length} GPT Image 2 generation(s) in parallel...`);
             const results = await Promise.all(
               Object.entries(selectedStyles).map(async ([sKey, cfg]) => {
+                const tStyle = Date.now();
                 try {
                   const formData = new FormData();
                   formData.append('model', 'gpt-image-2');
@@ -154,32 +169,38 @@ PRODUCT: [1-sentence product description]` },
                   });
                   if (!r.ok) {
                     const errText = await r.text();
-                    console.error(`GPT Image 2 error (${sKey}):`, errText);
+                    console.error(`[timing] ${sKey} FAILED in ${ms(tStyle)}:`, errText);
                     return { style: sKey, label: cfg.label, error: true };
                   }
                   const data = await r.json();
                   const b64 = data?.data?.[0]?.b64_json;
                   if (b64) {
+                    console.log(`[timing] ${sKey} done: ${ms(tStyle)}`);
                     return { style: sKey, label: cfg.label, b64 };
                   }
                   const url = data?.data?.[0]?.url;
                   if (url) {
                     const imgF = await fetch(url);
                     const buf = Buffer.from(await imgF.arrayBuffer());
+                    console.log(`[timing] ${sKey} done (via URL): ${ms(tStyle)}`);
                     return { style: sKey, label: cfg.label, b64: buf.toString('base64') };
                   }
+                  console.error(`[timing] ${sKey} returned no image after ${ms(tStyle)}`);
                   return { style: sKey, label: cfg.label, error: true };
                 } catch (e) {
-                  console.error(`Error (${sKey}):`, e.message);
+                  console.error(`[timing] ${sKey} threw after ${ms(tStyle)}:`, e.message);
                   return { style: sKey, label: cfg.label, error: true };
                 }
               })
             );
+            console.log(`[timing] All generations finished in ${ms(tGenAll)}`);
+            console.log(`[timing] TOTAL request: ${ms(tStart)}`);
 
             res.statusCode = 200;
             res.setHeader('content-type', 'application/json');
             res.end(JSON.stringify({ images: results }));
           } catch (e) {
+            console.error(`[timing] Request FAILED after ${ms(tStart)}:`, e?.message);
             res.statusCode = 500;
             res.setHeader('content-type', 'application/json');
             res.end(JSON.stringify({ error: e?.message || 'error' }));

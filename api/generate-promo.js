@@ -104,6 +104,9 @@ export default async function handler(req, res) {
 
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
+  const tStart = Date.now();
+  const ms = (t) => `${((Date.now() - t) / 1000).toFixed(1)}s`;
+
   try {
     const { imageUrl, style, rotation: manualRotation } = req.body || {};
 
@@ -116,20 +119,32 @@ export default async function handler(req, res) {
       : STYLES;
 
     // 1. Download the source image
+    const tDownload = Date.now();
     const imgRes = await fetch(imageUrl);
     if (!imgRes.ok) throw new Error('No se pudo descargar la imagen del producto');
     let imgBuffer = Buffer.from(await imgRes.arrayBuffer());
+    console.log(`[timing] Download: ${ms(tDownload)}`);
 
-    // 2. Analyze product (strap details + orientation if no manual rotation)
+    // 2. ALWAYS apply EXIF rotation + manual rotation FIRST so the buffer
+    //    sent to OpenAI matches what the user sees in the preview.
+    const tRotate = Date.now();
+    const validManual = [90, 180, 270].includes(manualRotation) ? manualRotation : 0;
+    console.log(`manualRotation=${manualRotation} → applying ${validManual}° (after EXIF)`);
+    imgBuffer = await sharp(imgBuffer).rotate().toBuffer(); // EXIF auto-orient
+    if (validManual !== 0) {
+      imgBuffer = await sharp(imgBuffer).rotate(validManual).jpeg({ quality: 92 }).toBuffer();
+    } else {
+      imgBuffer = await sharp(imgBuffer).jpeg({ quality: 92 }).toBuffer();
+    }
+    console.log(`[timing] Rotation: ${ms(tRotate)}`);
+
+    // 3. Analyze product on the ALREADY-rotated buffer (strap context + auto-rotation only when no manual).
+    const tAnalysis = Date.now();
     const analysis = await analyzeProduct(imgBuffer, anthropicKey);
-
-    // 3. Apply rotation — manual override takes priority, then AI detection
-    const effectiveRotation = (manualRotation && [90, 180, 270].includes(manualRotation))
-      ? manualRotation
-      : analysis.rotation;
-    if (effectiveRotation !== 0) {
-      console.log(`Applying ${effectiveRotation}° rotation (${manualRotation ? 'manual' : 'auto-detected'})`);
-      imgBuffer = await sharp(imgBuffer).rotate(effectiveRotation).jpeg({ quality: 92 }).toBuffer();
+    console.log(`[timing] Claude analysis: ${ms(tAnalysis)}`);
+    if (validManual === 0 && [90, 180, 270].includes(analysis.rotation)) {
+      console.log(`Auto-rotating ${analysis.rotation}° (Claude detection, no manual)`);
+      imgBuffer = await sharp(imgBuffer).rotate(analysis.rotation).jpeg({ quality: 92 }).toBuffer();
     }
 
     // 4. Build strap/product context for prompts
@@ -150,8 +165,11 @@ export default async function handler(req, res) {
     const imgBlob = new Blob([imgBuffer], { type: 'image/jpeg' });
 
     // 6. Generate images for each style — ALL IN PARALLEL
+    const tGenAll = Date.now();
+    console.log(`[timing] Starting ${Object.keys(selectedStyles).length} GPT Image 2 generation(s) in parallel...`);
     const results = await Promise.all(
       Object.entries(selectedStyles).map(async ([key_style, cfg]) => {
+        const tStyle = Date.now();
         try {
           const formData = new FormData();
           formData.append('model', 'gpt-image-2');
@@ -169,35 +187,45 @@ export default async function handler(req, res) {
 
           if (!r.ok) {
             const errText = await r.text();
-            console.error(`GPT Image 2 error for style ${key_style}:`, errText);
+            console.error(`[timing] ${key_style} FAILED in ${ms(tStyle)}:`, errText);
             return { style: key_style, label: cfg.label, error: true };
           }
 
           const data = await r.json();
           const b64 = data?.data?.[0]?.b64_json;
           if (b64) {
+            console.log(`[timing] ${key_style} done: ${ms(tStyle)}`);
             return { style: key_style, label: cfg.label, b64 };
           }
           const url = data?.data?.[0]?.url;
           if (url) {
             const imgFetch = await fetch(url);
             const buf = Buffer.from(await imgFetch.arrayBuffer());
+            console.log(`[timing] ${key_style} done (via URL): ${ms(tStyle)}`);
             return { style: key_style, label: cfg.label, b64: buf.toString('base64') };
           }
+          console.error(`[timing] ${key_style} returned no image after ${ms(tStyle)}`);
           return { style: key_style, label: cfg.label, error: true };
         } catch (e) {
-          console.error(`Error generating ${key_style}:`, e.message);
+          console.error(`[timing] ${key_style} threw after ${ms(tStyle)}:`, e.message);
           return { style: key_style, label: cfg.label, error: true };
         }
       })
     );
 
+    console.log(`[timing] All generations finished in ${ms(tGenAll)}`);
+    console.log(`[timing] TOTAL request: ${ms(tStart)}`);
+
     if (results.every(r => r.error)) {
       return res.status(502).json({ error: 'No se pudo generar ninguna imagen. Verifica tu OPENAI_API_KEY.' });
     }
 
-    return res.status(200).json({ images: results, rotated: effectiveRotation });
+    const finalRotation = validManual !== 0
+      ? validManual
+      : (analysis.rotation && [90, 180, 270].includes(analysis.rotation) ? analysis.rotation : 0);
+    return res.status(200).json({ images: results, rotated: finalRotation });
   } catch (e) {
+    console.error(`[timing] Request FAILED after ${ms(tStart)}:`, e?.message);
     return res.status(500).json({ error: e?.message || 'Error inesperado' });
   }
 }
