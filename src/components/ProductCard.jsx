@@ -1,6 +1,29 @@
+import { useState } from 'react';
 import { money } from '../lib/utils.js';
+import { exportSingleProductAsZip } from '../lib/exportZip.js';
 
-export default function ProductCard({ item, onEdit, onDelete, onSell, onUnsell, onPromo, onViewPromos }) {
+export default function ProductCard({ item, onEdit, onDelete, onSell, onUnsell, onPromo, onViewPromos, onToast }) {
+  const [downloading, setDownloading] = useState(false);
+  const hasAnyPhoto = !!item.photo_url
+    || (Array.isArray(item.extra_photo_urls) && item.extra_photo_urls.length > 0)
+    || (Array.isArray(item.promo_urls) && item.promo_urls.length > 0);
+
+  const handleDownload = async (e) => {
+    e.stopPropagation();
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const result = await exportSingleProductAsZip(item);
+      const msg = result.errors.length
+        ? `ZIP listo (${result.errors.length} fallaron)`
+        : `ZIP listo (${result.totalFiles} fotos)`;
+      onToast?.(msg);
+    } catch (err) {
+      onToast?.('Error: ' + err.message);
+    } finally {
+      setDownloading(false);
+    }
+  };
   const qty = Number(item.qty || 1);
   const cost = Number(item.cost || 0);
   const price = item.sold ? Number(item.sold_price || 0) : Number(item.price || 0);
@@ -72,6 +95,16 @@ export default function ProductCard({ item, onEdit, onDelete, onSell, onUnsell, 
           : <button className="btn btn-success" onClick={() => onSell(item.id)}>Vender</button>
         }
         <button className="btn" onClick={() => onEdit(item)}>Editar</button>
+        {hasAnyPhoto && (
+          <button
+            className="btn btn-ghost"
+            onClick={handleDownload}
+            disabled={downloading}
+            title="Descargar ZIP con fotos originales y promos"
+          >
+            {downloading ? '⏳' : '📦 ZIP'}
+          </button>
+        )}
         <button className="btn btn-danger" onClick={() => onDelete(item)}>Eliminar</button>
       </div>
     </div>

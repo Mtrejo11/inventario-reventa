@@ -1,6 +1,6 @@
 import ProductCard from './ProductCard.jsx';
 
-export default function ProductGrid({ items, total, loading, onAdd, onEdit, onDelete, onSell, onUnsell, onPromo, onViewPromos }) {
+export default function ProductGrid({ items, total, loading, onAdd, onEdit, onDelete, onSell, onUnsell, onPromo, onViewPromos, onToast }) {
   if (loading) {
     return <div className="empty"><div className="spinner" /> <p>Cargando inventario...</p></div>;
   }
@@ -28,6 +28,7 @@ export default function ProductGrid({ items, total, loading, onAdd, onEdit, onDe
           onUnsell={onUnsell}
           onPromo={onPromo}
           onViewPromos={onViewPromos}
+          onToast={onToast}
         />
       ))}
     </div>

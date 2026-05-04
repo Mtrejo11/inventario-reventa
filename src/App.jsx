@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { supabaseReady } from './supabase.js';
 import { listProducts, createProduct, updateProduct, deleteProduct, appendPromoUrls, removePromoUrl } from './lib/api.js';
+import { exportProductsAsZip } from './lib/exportZip.js';
 import { useAuth } from './contexts/AuthContext.jsx';
 import Login from './components/Login.jsx';
 import Header from './components/Header.jsx';
@@ -26,6 +27,7 @@ export default function App() {
   const [sellingId, setSellingId] = useState(null);
   const [promoItem, setPromoItem] = useState(null);
   const [galleryItem, setGalleryItem] = useState(null);
+  const [exportProgress, setExportProgress] = useState(null);
 
   const showToast = useCallback((msg) => {
     setToast(msg);
@@ -152,6 +154,29 @@ export default function App() {
 
   const sellingItem = sellingId ? products.find(p => p.id === sellingId) : null;
 
+  const handleExportFiltered = async () => {
+    if (filtered.length === 0) {
+      showToast('No hay productos para exportar');
+      return;
+    }
+    if (exportProgress) return;
+    try {
+      setExportProgress({ done: 0, total: 0 });
+      const result = await exportProductsAsZip(filtered, {
+        zipName: 'inventario',
+        onProgress: (p) => setExportProgress(p),
+      });
+      const msg = result.errors.length
+        ? `ZIP listo: ${result.totalFiles} fotos (${result.errors.length} fallaron)`
+        : `ZIP listo: ${result.totalFiles} fotos`;
+      showToast(msg);
+    } catch (e) {
+      showToast('Error: ' + e.message);
+    } finally {
+      setExportProgress(null);
+    }
+  };
+
   // Auth gate
   if (authLoading) {
     return (
@@ -178,6 +203,20 @@ export default function App() {
         )}
         <Stats s={stats} />
         <Filters ui={ui} setUi={setUi} />
+        <div className="export-bar">
+          <button
+            className="btn"
+            onClick={handleExportFiltered}
+            disabled={!!exportProgress || filtered.length === 0}
+            title="Descargar ZIP con originales y promos de los productos filtrados"
+          >
+            {exportProgress
+              ? (exportProgress.phase === 'compressing'
+                  ? 'Comprimiendo ZIP...'
+                  : `Descargando ${exportProgress.done}/${exportProgress.total}...`)
+              : `📦 Descargar ZIP (${filtered.length})`}
+          </button>
+        </div>
         <ProductGrid
           items={filtered}
           total={products.length}
@@ -189,6 +228,7 @@ export default function App() {
           onUnsell={handleUnsell}
           onPromo={(item) => setPromoItem(item)}
           onViewPromos={(item) => setGalleryItem(item)}
+          onToast={showToast}
         />
       </main>
 
