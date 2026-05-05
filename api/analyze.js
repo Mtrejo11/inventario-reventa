@@ -81,7 +81,7 @@ export default async function handler(req, res) {
     content.push({ type: 'text', text: PROMPT_MULTI });
 
     const requestBody = {
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1400,
       messages: [{ role: 'user', content }]
     };

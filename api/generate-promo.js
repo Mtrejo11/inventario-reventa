@@ -11,29 +11,31 @@ export const config = { maxDuration: 300 };
 
 const COLOR_LOCK = `COLOR FIDELITY (HIGHEST PRIORITY): The input image is the AUTHORITATIVE reference for the product's colors. Reproduce every color on the product EXACTLY as it appears in the input — same hue, same saturation, same brightness, same color temperature. If the input shows a navy blue product, output the SAME navy blue (not black, not royal blue, not brown-shifted dark). If the input shows a beige label, output the SAME beige (not white, not cream). Do NOT warm-shift, cool-shift, desaturate, or "harmonize" the product's colors with the new scene's lighting. The scene's ambient light may slightly affect highlights and shadows on the product's surface, but the underlying body colors of the product must be IDENTICAL to the input image.`;
 
+const STATE_LOCK = `Follow the EXACT STATE TO REPRODUCE and VISIBLE FEATURES instructions provided below — they are the authoritative description of how the product must appear. You may only change the surrounding scene, background, and lighting — never the product's state, orientation, or feature set.`;
+
 const STYLES = {
   studio: {
     label: 'Estudio profesional',
-    prompt: `Professional e-commerce product photo. Clean white or light gray seamless backdrop. Soft, diffused studio lighting from above and both sides, creating gentle natural shadows beneath the product. The product is the sole hero — centered, fully open/unfolded, and displayed upright or laid flat to show its complete shape. Slightly closer crop than a full-body shot: frame the product with minimal empty space so details are clearly visible. Style reference: Nordstrom, Net-a-Porter product pages. No text, no watermarks, no props. ${COLOR_LOCK} CRITICAL: Reproduce the product with photographic accuracy — exact shape, material, color, logo placement, hardware, stitching, and any patterns or textures. Every detail must be continuous and physically realistic. Never fold, roll, or partially hide the product.`,
+    prompt: `Professional e-commerce product photo. Clean white or light gray seamless backdrop. Soft, diffused studio lighting from above and both sides, creating gentle natural shadows beneath the product. The product is the sole hero — centered, shown in the same configuration as the input image. Slightly closer crop than a full-body shot: frame the product with minimal empty space so details are clearly visible. Style reference: Nordstrom, Net-a-Porter product pages. No text, no watermarks, no props. ${COLOR_LOCK} ${STATE_LOCK} CRITICAL: Reproduce the product with photographic accuracy — exact shape, material, color, logo placement, hardware, stitching, and any patterns or textures. Every detail must be continuous and physically realistic.`,
   },
   lifestyle: {
     label: 'Lifestyle',
-    prompt: `Aspirational lifestyle product photograph. The product is displayed fully open/unfolded in ONE of these physically realistic scenes (pick the most natural fit): hanging on a sleek wall hook or coat rack near a sunlit window; resting upright on a clean marble surface or wooden console table; laid flat on crisp white bedding with soft morning light; placed on a mid-century leather armchair. The scene must obey real-world physics — no furniture on top of other furniture, no floating objects. Keep the setting minimal and luxurious: 1-2 subtle props maximum (a small plant, a candle, a book). Warm, inviting tones. The product fills at least 60% of the frame — use a slightly tighter crop to highlight material and detail. Instagram-worthy aesthetic. No text, no watermarks. The light hitting the product should come from the SAME direction and have the SAME quality as the light hitting the rest of the scene. If the scene has hard sunlight from one side, the product should also show a brighter sunlit side and a shadowed side. If the scene is soft and diffused, the product should also be soft. Do NOT add separate studio-style rim lights or all-around fill lighting that ignores the scene's actual light source. The product's cast shadow on nearby surfaces should be SOFT-EDGED and diffuse — never a sharp dark duplicate of the product's silhouette. Match the softness of other shadows in the scene (e.g. plant or prop shadows). Depth of field must be physically consistent: any object on the SAME surface or plane as the product (vases, cups, books, fabric) should be roughly as sharp as the product itself — do NOT make the product razor-sharp while blurring co-planar objects. Only true background elements (walls, distant scenery) may be softly blurred. ${COLOR_LOCK} CRITICAL: Reproduce the product with photographic accuracy — exact shape, material, color, logo, hardware, stitching, patterns, and textures. Never fold, crumple, or partially obscure the product.`,
+    prompt: `Aspirational lifestyle product photograph. The product is displayed in the same configuration as the input image, in ONE of these physically realistic scenes (pick the most natural fit): hanging on a sleek wall hook or coat rack near a sunlit window; resting on a clean marble surface or wooden console table; laid on crisp white bedding with soft morning light; placed on a mid-century leather armchair. The scene must obey real-world physics — no furniture on top of other furniture, no floating objects. Keep the setting minimal and luxurious: 1-2 subtle props maximum (a small plant, a candle, a book). Warm, inviting tones. The product fills at least 60% of the frame — use a slightly tighter crop to highlight material and detail. Instagram-worthy aesthetic. No text, no watermarks. The light hitting the product should come from the SAME direction and have the SAME quality as the light hitting the rest of the scene. If the scene has hard sunlight from one side, the product should also show a brighter sunlit side and a shadowed side. If the scene is soft and diffused, the product should also be soft. Do NOT add separate studio-style rim lights or all-around fill lighting that ignores the scene's actual light source. The product's cast shadow on nearby surfaces should be SOFT-EDGED and diffuse — never a sharp dark duplicate of the product's silhouette. Match the softness of other shadows in the scene (e.g. plant or prop shadows). Depth of field must be physically consistent: any object on the SAME surface or plane as the product (vases, cups, books, fabric) should be roughly as sharp as the product itself — do NOT make the product razor-sharp while blurring co-planar objects. Only true background elements (walls, distant scenery) may be softly blurred. ${COLOR_LOCK} ${STATE_LOCK} CRITICAL: Reproduce the product with photographic accuracy — exact shape, material, color, logo, hardware, stitching, patterns, and textures.`,
   },
   editorial: {
     label: 'Editorial / Fashion',
-    prompt: `High-fashion editorial product photo. The product is displayed fully open/unfolded against a bold, single-color backdrop (deep plum, emerald green, navy blue, or rich terracotta) OR on a textured surface like raw concrete or dark slate. Dramatic directional lighting — strong key light from one side with deep, cinematic shadows. The framing is a confident close-up: the product fills 65-75% of the frame, emphasizing material texture, hardware details, and craftsmanship. Think Vogue or Harper's Bazaar product features. The product should look premium, editorial, and desirable. No props, no text, no watermarks. ${COLOR_LOCK} CRITICAL: Reproduce the product with photographic accuracy — exact shape, material, color, logo, hardware, stitching, patterns, and textures. Never fold, drape over, or partially hide the product.`,
+    prompt: `High-fashion editorial product photo. The product is displayed in the same configuration as the input image, against a bold, single-color backdrop (deep plum, emerald green, navy blue, or rich terracotta) OR on a textured surface like raw concrete or dark slate. Dramatic directional lighting — strong key light from one side with deep, cinematic shadows. The framing is a confident close-up: the product fills 65-75% of the frame, emphasizing material texture, hardware details, and craftsmanship. Think Vogue or Harper's Bazaar product features. The product should look premium, editorial, and desirable. No props, no text, no watermarks. ${COLOR_LOCK} ${STATE_LOCK} CRITICAL: Reproduce the product with photographic accuracy — exact shape, material, color, logo, hardware, stitching, patterns, and textures.`,
   },
 };
 
-// Analyze product: orientation + strap details.
-// Returns { rotation: 0|90|180|270, strapInfo: string, productInfo: string }
+// Analyze product: orientation + strap details + visible state/features.
+// Returns { rotation, strapInfo, productInfo, stateInfo, featuresInfo }
 async function analyzeProduct(imgBuffer, anthropicKey) {
-  const result = { rotation: 0, strapInfo: '', productInfo: '' };
+  const result = { rotation: 0, strapInfo: '', productInfo: '', stateInfo: '', featuresInfo: '' };
   if (!anthropicKey) return result;
 
   try {
-    const smallBuf = await sharp(imgBuffer).resize(512, 512, { fit: 'inside' }).jpeg({ quality: 80 }).toBuffer();
+    const smallBuf = await sharp(imgBuffer).resize(768, 768, { fit: 'inside' }).jpeg({ quality: 85 }).toBuffer();
     const b64 = smallBuf.toString('base64');
 
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -45,7 +47,7 @@ async function analyzeProduct(imgBuffer, anthropicKey) {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 300,
+        max_tokens: 600,
         messages: [{
           role: 'user',
           content: [
@@ -55,10 +57,13 @@ async function analyzeProduct(imgBuffer, anthropicKey) {
             },
             {
               type: 'text',
-              text: `Analyze this product photo. Reply in this EXACT format:
+              text: `You are preparing instructions for an image generation model that will recreate this product photo in different scenes. Be EXTREMELY precise about what is visible. Reply in this EXACT format:
+
 ROTATION: [0, 90, 180, or 270 — degrees CW needed so the product is naturally upright]
-STRAP: [detailed description of strap/handle/chain if any, or "none"]
-PRODUCT: [1-sentence product description]`,
+PRODUCT: [1 sentence: type, brand if visible, color, material]
+STATE: [is the product OPEN, CLOSED, FOLDED, FLAT, HANGING, etc.? Which side/face is facing the camera (front, back, interior, exterior)? Be explicit. Example: "Wallet is OPEN, showing the INTERIOR with two card slots on the left flap and a zippered compartment + ID window on the right flap." Example: "Wallet is CLOSED, showing the EXTERIOR front face with embossed logo. Interior is NOT visible." Example: "Shirt is laid FLAT, showing the front side with collar at top and buttons running down center."]
+VISIBLE_FEATURES: [comma-separated list of every distinct feature PERMANENTLY part of the product: hardware, logos, stitching lines, pockets, zippers, panels, embellishments. Only list what you can SEE. EXCLUDE all retail/price tags, hangtags, store stickers, and removable paper or plastic labels — those will be removed in the output. Example: "gold zipper pull on right flap, embossed STEVE MADDEN logo on bottom-left of left flap, two horizontal card slots on left flap, transparent ID window on right flap, light blue pebbled leather body, gold lobster clasp at top, light blue wristlet strap"]
+STRAP: [Describe a real wearable/carrying strap, handle, chain, or wristlet ONLY if ALL of these conditions are true: (1) it forms a CLOSED LOOP large enough to fit a hand or wrist through (typically 6+ inches / 15+ cm of total length), AND (2) it is attached to a dedicated D-ring, side loop, or strap anchor on the product body — NOT to a zipper slider. If even one of those conditions is not met, reply "none". A short metal chain or leather tab hanging from the zipper slider with a brand-name engraved rectangular tag is a ZIPPER PULL DECORATION, not a wristlet — reply "none". A tassel, keyring, charm, or any short dangling ornament is NOT a strap — reply "none". When in doubt, reply "none".]`,
             },
           ],
         }],
@@ -78,15 +83,21 @@ PRODUCT: [1-sentence product description]`,
     result.rotation = rotMatch ? parseInt(rotMatch[1], 10) : 0;
     if (![0, 90, 180, 270].includes(result.rotation)) result.rotation = 0;
 
-    const strapMatch = rawText.match(/STRAP:\s*(.+?)(?=\nPRODUCT:|$)/s);
+    const prodMatch = rawText.match(/PRODUCT:\s*(.+?)(?=\nSTATE:|$)/s);
+    if (prodMatch) result.productInfo = prodMatch[1].trim();
+
+    const stateMatch = rawText.match(/STATE:\s*(.+?)(?=\nVISIBLE_FEATURES:|$)/s);
+    if (stateMatch) result.stateInfo = stateMatch[1].trim();
+
+    const featMatch = rawText.match(/VISIBLE_FEATURES:\s*(.+?)(?=\nSTRAP:|$)/s);
+    if (featMatch) result.featuresInfo = featMatch[1].trim();
+
+    const strapMatch = rawText.match(/STRAP:\s*(.+?)$/s);
     if (strapMatch && strapMatch[1].trim().toLowerCase() !== 'none') {
       result.strapInfo = strapMatch[1].trim();
     }
 
-    const prodMatch = rawText.match(/PRODUCT:\s*(.+?)$/s);
-    if (prodMatch) result.productInfo = prodMatch[1].trim();
-
-    console.log(`Analysis: rotation=${result.rotation}°, strap=${result.strapInfo ? 'yes' : 'none'}`);
+    console.log(`Analysis: rotation=${result.rotation}°, state="${result.stateInfo.slice(0, 80)}...", strap=${result.strapInfo ? 'yes' : 'none'}`);
     return result;
   } catch (e) {
     console.error('Product analysis error:', e.message);
@@ -149,18 +160,23 @@ export default async function handler(req, res) {
       imgBuffer = await sharp(imgBuffer).rotate(analysis.rotation).jpeg({ quality: 92 }).toBuffer();
     }
 
-    // 4. Build strap/product context for prompts
+    // 4. Build positive-instruction context from Claude's analysis.
+    //    These tell the model EXACTLY what to render — no guessing from the input image.
     let extraContext = '';
-    if (analysis.strapInfo) {
-      extraContext += `\n\nCRITICAL — STRAP/HANDLE ACCURACY: This product has a strap: ${analysis.strapInfo}. Rules for the strap:
-1. Reproduce the EXACT colors, pattern, material, width, and attachment hardware.
-2. The stripe/pattern must be CONTINUOUS and UNBROKEN along the entire length of the strap — no gaps, no pattern interruptions, no sudden changes in stripe direction. Think of it as a single physical piece of fabric.
-3. Show the strap in a natural, relaxed draping position.
-4. The strap attaches to the product at specific hardware points — show those connections realistically.
-5. Do NOT simplify, invent, or alter the strap pattern. It must look like the SAME real strap, just repositioned naturally.`;
-    }
     if (analysis.productInfo) {
-      extraContext += `\nProduct context: ${analysis.productInfo}`;
+      extraContext += `\n\nPRODUCT IDENTITY: ${analysis.productInfo}`;
+    }
+    if (analysis.stateInfo) {
+      extraContext += `\n\nEXACT STATE TO REPRODUCE (do not deviate): ${analysis.stateInfo} The product MUST appear in this exact state and orientation in the output. Do NOT open it if it is closed. Do NOT close it if it is open. Do NOT flip, fold, unfold, or change which side faces the camera.`;
+    }
+    if (analysis.featuresInfo) {
+      extraContext += `\n\nVISIBLE FEATURES (reproduce ALL of these, and ONLY these — do not invent extras): ${analysis.featuresInfo}. Any feature not in this list must NOT appear in the output (no extra zippers, slots, pockets, hardware, or embellishments).`;
+    }
+    extraContext += `\n\nTAG REMOVAL (mandatory): Remove ALL retail tags, hangtags, price stickers, store labels, and any removable paper or plastic tag from the product, even if they are visible in the input image. The product must appear clean and ready-to-sell — no tags, no stickers, no dangling labels of any kind. Permanent embossed/printed brand logos that are part of the product itself must remain.`;
+    if (analysis.strapInfo) {
+      extraContext += `\n\nSTRAP/HANDLE ACCURACY: ${analysis.strapInfo}. Reproduce the EXACT colors, pattern, material, width, and attachment hardware. The pattern must be CONTINUOUS and UNBROKEN along the entire length. Show it in a natural, relaxed draping position. Do NOT simplify or alter it.`;
+    } else {
+      extraContext += `\n\nNO STRAP / NO CHAIN / NO WRISTLET (mandatory): This product has NO carrying strap, NO chain, NO handle, NO wristlet, NO lanyard, and NO shoulder strap of any kind. Do NOT add a chain, strap, handle, wristlet, lanyard, or any carrying accessory to the product. Any small metal pull tab on a zipper is JUST a zipper pull — it is NOT a chain and must NOT extend or connect to a chain. The product stands or rests on its own with no attached carrying piece.`;
     }
 
     // 5. Create blob from corrected image

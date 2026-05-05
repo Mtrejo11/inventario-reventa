@@ -124,7 +124,8 @@ export async function analyzeImage(input) {
   });
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
-    throw new Error(j.error || `HTTP ${res.status}`);
+    const msg = [j.error, j.detail].filter(Boolean).join(' — ');
+    throw new Error(msg || `HTTP ${res.status}`);
   }
   return res.json();
 }
