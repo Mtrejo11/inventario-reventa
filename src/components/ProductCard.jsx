@@ -1,15 +1,38 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { money } from '../lib/utils.js';
 import { exportSingleProductAsZip } from '../lib/exportZip.js';
 
 export default function ProductCard({ item, onEdit, onDelete, onSell, onUnsell, onPromo, onViewPromos, onToast }) {
   const [downloading, setDownloading] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onClickOutside(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    }
+    function onKey(e) {
+      if (e.key === 'Escape') setMenuOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('touchstart', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('touchstart', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
   const hasAnyPhoto = !!item.photo_url
     || (Array.isArray(item.extra_photo_urls) && item.extra_photo_urls.length > 0)
     || (Array.isArray(item.promo_urls) && item.promo_urls.length > 0);
 
   const handleDownload = async (e) => {
-    e.stopPropagation();
+    e?.stopPropagation?.();
     if (downloading) return;
     setDownloading(true);
     try {
@@ -91,21 +114,57 @@ export default function ProductCard({ item, onEdit, onDelete, onSell, onUnsell, 
       </div>
       <div className="actions">
         {item.sold
-          ? <button className="btn btn-ghost" onClick={() => onUnsell(item)}>Revertir</button>
-          : <button className="btn btn-success" onClick={() => onSell(item.id)}>Vender</button>
+          ? <button className="btn btn-ghost action-primary" onClick={() => onUnsell(item)}>Revertir</button>
+          : <button className="btn btn-success action-primary" onClick={() => onSell(item.id)}>Vender</button>
         }
-        <button className="btn" onClick={() => onEdit(item)}>Editar</button>
-        {hasAnyPhoto && (
+        <div className="action-menu" ref={menuRef}>
           <button
-            className="btn btn-ghost"
-            onClick={handleDownload}
-            disabled={downloading}
-            title="Descargar ZIP con fotos originales y promos"
+            type="button"
+            className="btn action-menu-trigger"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="Más acciones"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            title="Más acciones"
           >
-            {downloading ? '⏳' : '📦 ZIP'}
+            ⋯
           </button>
-        )}
-        <button className="btn btn-danger" onClick={() => onDelete(item)}>Eliminar</button>
+          {menuOpen && (
+            <div className="action-menu-dropdown" role="menu">
+              <button
+                type="button"
+                className="action-menu-item"
+                role="menuitem"
+                onClick={() => { setMenuOpen(false); onEdit(item); }}
+              >
+                <span className="action-menu-icon" aria-hidden="true">✏️</span>
+                Editar
+              </button>
+              {hasAnyPhoto && (
+                <button
+                  type="button"
+                  className="action-menu-item"
+                  role="menuitem"
+                  onClick={() => { setMenuOpen(false); handleDownload(); }}
+                  disabled={downloading}
+                  title="Descargar ZIP con fotos originales y promos"
+                >
+                  <span className="action-menu-icon" aria-hidden="true">{downloading ? '⏳' : '📦'}</span>
+                  {downloading ? 'Descargando…' : 'Descargar ZIP'}
+                </button>
+              )}
+              <button
+                type="button"
+                className="action-menu-item action-menu-item-danger"
+                role="menuitem"
+                onClick={() => { setMenuOpen(false); onDelete(item); }}
+              >
+                <span className="action-menu-icon" aria-hidden="true">🗑</span>
+                Eliminar
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
