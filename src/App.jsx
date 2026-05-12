@@ -3,6 +3,7 @@ import { supabaseReady } from './supabase.js';
 import { listProducts, createProduct, updateProduct, deleteProduct, appendPromoUrls, removePromoUrl } from './lib/api.js';
 import { exportProductsAsZip } from './lib/exportZip.js';
 import { sortProducts, DEFAULT_SORT_KEY } from './lib/sortProducts.js';
+import { buildSellPatch, buildUnsellPatch, getDeleteArgs } from './lib/inventory.js';
 import { useAuth } from './contexts/AuthContext.jsx';
 import Login from './components/Login.jsx';
 import Header from './components/Header.jsx';
@@ -122,7 +123,7 @@ export default function App() {
   const handleDelete = async (item) => {
     if (!confirm('¿Eliminar este producto? No se puede deshacer.')) return;
     try {
-      await deleteProduct(item.id, item.photo_path);
+      await deleteProduct(...getDeleteArgs(item));
       setProducts(p => p.filter(x => x.id !== item.id));
       showToast('Producto eliminado');
     } catch (e) {
@@ -134,9 +135,7 @@ export default function App() {
   const handleUnsell = async (item) => {
     if (!confirm('¿Revertir la venta y marcarlo como disponible?')) return;
     try {
-      const updated = await updateProduct(item.id, {
-        sold: false, sold_price: null, sold_date: null, sold_note: null
-      });
+      const updated = await updateProduct(item.id, buildUnsellPatch());
       setProducts(p => p.map(x => x.id === updated.id ? updated : x));
       showToast('Venta revertida');
     } catch (e) { showToast('Error: ' + e.message); }
@@ -144,12 +143,7 @@ export default function App() {
 
   const confirmSell = async (payload) => {
     try {
-      const updated = await updateProduct(sellingId, {
-        sold: true,
-        sold_price: payload.price,
-        sold_date: payload.date,
-        sold_note: payload.note
-      });
+      const updated = await updateProduct(sellingId, buildSellPatch(payload));
       setProducts(p => p.map(x => x.id === updated.id ? updated : x));
       setSellingId(null);
       showToast('Venta registrada ✔');
