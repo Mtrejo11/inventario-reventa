@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { supabaseReady } from './supabase.js';
 import { listProducts, createProduct, updateProduct, deleteProduct, appendPromoUrls, removePromoUrl } from './lib/api.js';
 import { exportProductsAsZip } from './lib/exportZip.js';
+import { downloadInventoryXlsx } from './lib/exportXlsx.js';
 import { sortProducts, DEFAULT_SORT_KEY } from './lib/sortProducts.js';
 import { buildSellPatch, buildUnsellPatch, getDeleteArgs, buildEditPatch } from './lib/inventory.js';
 import { useAuth } from './contexts/AuthContext.jsx';
@@ -213,6 +214,14 @@ export default function App() {
                   ? 'Comprimiendo ZIP...'
                   : `Descargando ${exportProgress.done}/${exportProgress.total}...`)
               : `📦 Descargar ZIP (${filtered.length})`}
+          </button>
+          <button
+            className="btn"
+            onClick={() => downloadInventoryXlsx(sorted)}
+            disabled={sorted.length === 0}
+            title="Descargar inventario filtrado y ordenado como archivo Excel"
+          >
+            {`📊 Exportar a Excel (${sorted.length})`}
           </button>
         </div>
         <SortControl
