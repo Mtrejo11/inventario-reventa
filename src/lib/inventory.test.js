@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSellPatch, buildUnsellPatch, getDeleteArgs } from './inventory.js';
+import { buildSellPatch, buildUnsellPatch, getDeleteArgs, buildEditPatch, EDITABLE_FIELDS } from './inventory.js';
 
 describe('buildSellPatch', () => {
   it('returns an object with exactly the keys {sold, sold_price, sold_date, sold_note}', () => {
@@ -78,3 +78,69 @@ describe('getDeleteArgs', () => {
     expect(getDeleteArgs(item)).toHaveLength(2);
   });
 });
+
+describe('buildEditPatch', () => {
+  const ALL_EDITABLE = [
+    'name', 'brand', 'category', 'store', 'color', 'size', 'condition',
+    'cost', 'price', 'qty', 'notes', 'photo_url', 'photo_path',
+    'extra_photo_urls', 'extra_photo_paths',
+  ];
+
+  it('EDITABLE_FIELDS has exactly 15 entries with the correct names in order', () => {
+    expect(EDITABLE_FIELDS).toHaveLength(15);
+    expect(EDITABLE_FIELDS).toEqual(ALL_EDITABLE);
+  });
+
+  it('EDITABLE_FIELDS does not include sold, sold_price, sold_date, sold_note, id, or created_at', () => {
+    const forbidden = ['sold', 'sold_price', 'sold_date', 'sold_note', 'id', 'created_at'];
+    expect(forbidden.every(k => !EDITABLE_FIELDS.includes(k))).toBe(true);
+  });
+
+  it('returns all editable fields when all are present in payload', () => {
+    const payload = {
+      name: 'Shirt', brand: 'Nike', category: 'Clothing', store: 'eBay',
+      color: 'Red', size: 'M', condition: 'New', cost: 10, price: 20,
+      qty: 5, notes: 'nice', photo_url: 'http://a.com/p.jpg',
+      photo_path: 'photos/p.jpg', extra_photo_urls: [], extra_photo_paths: [],
+    };
+    const patch = buildEditPatch(payload);
+    expect(Object.keys(patch).sort()).toEqual(ALL_EDITABLE.slice().sort());
+  });
+
+  it('returns only the present editable fields for a partial payload', () => {
+    const patch = buildEditPatch({ name: 'X' });
+    expect(patch).toEqual({ name: 'X' });
+  });
+
+  it('filters out non-whitelisted fields like sold', () => {
+    const patch = buildEditPatch({ name: 'A', sold: true });
+    expect(patch).toEqual({ name: 'A' });
+    expect(Object.prototype.hasOwnProperty.call(patch, 'sold')).toBe(false);
+  });
+
+  it('returns {} for an empty payload', () => {
+    expect(buildEditPatch({})).toEqual({});
+  });
+
+  it('returns a new object reference, not the same as payload', () => {
+    const payload = { name: 'B' };
+    const patch = buildEditPatch(payload);
+    expect(patch).not.toBe(payload);
+  });
+
+  it('does not mutate the input payload', () => {
+    const payload = { name: 'C', sold: true };
+    const keysBefore = Object.keys(payload).slice();
+    const valuesBefore = { ...payload };
+    buildEditPatch(payload);
+    expect(Object.keys(payload)).toEqual(keysBefore);
+    expect(payload).toEqual(valuesBefore);
+  });
+
+  it('copies values without transformation (string cost stays string)', () => {
+    const patch = buildEditPatch({ cost: '50', price: '100' });
+    expect(patch.cost).toBe('50');
+    expect(patch.price).toBe('100');
+  });
+});
+

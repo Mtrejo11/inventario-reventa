@@ -3,7 +3,7 @@ import { supabaseReady } from './supabase.js';
 import { listProducts, createProduct, updateProduct, deleteProduct, appendPromoUrls, removePromoUrl } from './lib/api.js';
 import { exportProductsAsZip } from './lib/exportZip.js';
 import { sortProducts, DEFAULT_SORT_KEY } from './lib/sortProducts.js';
-import { buildSellPatch, buildUnsellPatch, getDeleteArgs } from './lib/inventory.js';
+import { buildSellPatch, buildUnsellPatch, getDeleteArgs, buildEditPatch } from './lib/inventory.js';
 import { useAuth } from './contexts/AuthContext.jsx';
 import Login from './components/Login.jsx';
 import Header from './components/Header.jsx';
@@ -105,7 +105,7 @@ export default function App() {
   const handleSave = async (data, originalPhotoPath) => {
     try {
       if (editing) {
-        const updated = await updateProduct(editing.id, data);
+        const updated = await updateProduct(editing.id, buildEditPatch(data));
         setProducts(p => p.map(x => x.id === updated.id ? updated : x));
         showToast('Producto actualizado');
       } else {

@@ -39,3 +39,43 @@ export function buildUnsellPatch() {
 export function getDeleteArgs(item) {
   return [item.id, item.photo_path];
 }
+
+/**
+ * Whitelist of field names that may be updated when editing a product.
+ * Keys not in this list are stripped by buildEditPatch.
+ * @type {string[]}
+ */
+export const EDITABLE_FIELDS = [
+  'name',
+  'brand',
+  'category',
+  'store',
+  'color',
+  'size',
+  'condition',
+  'cost',
+  'price',
+  'qty',
+  'notes',
+  'photo_url',
+  'photo_path',
+  'extra_photo_urls',
+  'extra_photo_paths',
+];
+
+/**
+ * Build the update-patch for editing a product.
+ * Only copies keys present in EDITABLE_FIELDS AND present in payload.
+ * No type coercion, no validation — values are copied as-is.
+ * @param {Record<string, any>} payload
+ * @returns {Record<string, any>}
+ */
+export function buildEditPatch(payload) {
+  const patch = {};
+  for (const key of EDITABLE_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(payload, key)) {
+      patch[key] = payload[key];
+    }
+  }
+  return patch;
+}
