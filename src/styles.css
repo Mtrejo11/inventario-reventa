@@ -580,3 +580,11 @@ label{font-size:12px;color:var(--muted);font-weight:600;display:block;margin-bot
   display:flex;align-items:center;justify-content:center;width:100%;height:100%;
   background:var(--panel-2);font-size:24px;
 }
+
+/* Needs-attention badge */
+.badge.attention{background:#fbbf24;color:#78350f;}
+
+/* Needs-attention toggle */
+.attention-toggle{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;cursor:pointer;user-select:none;}
+.attention-toggle input{margin:0;}
+.attention-toggle-count{color:var(--muted,#6b7280);font-size:0.9em;}

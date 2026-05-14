@@ -4,6 +4,7 @@ import { listProducts, createProduct, updateProduct, deleteProduct, appendPromoU
 import { exportProductsAsZip } from './lib/exportZip.js';
 import { sortProducts, DEFAULT_SORT_KEY } from './lib/sortProducts.js';
 import { buildSellPatch, buildUnsellPatch, getDeleteArgs } from './lib/inventory.js';
+import { needsAttention } from './lib/needsAttention.js';
 import { useAuth } from './contexts/AuthContext.jsx';
 import Login from './components/Login.jsx';
 import Header from './components/Header.jsx';
@@ -16,6 +17,7 @@ import SellModal from './components/SellModal.jsx';
 import PromoPhotoModal from './components/PromoPhotoModal.jsx';
 import PromoGalleryModal from './components/PromoGalleryModal.jsx';
 import Toast from './components/Toast.jsx';
+import AttentionToggle from './components/AttentionToggle.jsx';
 
 export default function App() {
   const { session, loading: authLoading } = useAuth();
@@ -23,7 +25,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [toast, setToast] = useState('');
-  const [ui, setUi] = useState({ status: 'all', category: '', store: '', query: '', sortKey: DEFAULT_SORT_KEY });
+  const [ui, setUi] = useState({ status: 'all', category: '', store: '', query: '', sortKey: DEFAULT_SORT_KEY, needsAttentionOnly: false });
 
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -61,7 +63,7 @@ export default function App() {
   }, [session, refresh]);
 
   const filtered = useMemo(() => {
-    return products.filter(it => {
+    const base = products.filter(it => {
       if (ui.status === 'available' && it.sold) return false;
       if (ui.status === 'sold' && !it.sold) return false;
       if (ui.category && it.category !== ui.category) return false;
@@ -73,6 +75,23 @@ export default function App() {
       }
       return true;
     });
+    if (ui.needsAttentionOnly) return base.filter(it => needsAttention(it));
+    return base;
+  }, [products, ui]);
+
+  const attentionCount = useMemo(() => {
+    return products.filter(it => {
+      if (ui.status === 'available' && it.sold) return false;
+      if (ui.status === 'sold' && !it.sold) return false;
+      if (ui.category && it.category !== ui.category) return false;
+      if (ui.store && it.store !== ui.store) return false;
+      if (ui.query) {
+        const q = ui.query.toLowerCase();
+        const hay = [it.name, it.brand, it.notes, it.color].filter(Boolean).join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return needsAttention(it);
+    }).length;
   }, [products, ui]);
 
   const sorted = useMemo(() => sortProducts(filtered, ui.sortKey), [filtered, ui.sortKey]);
@@ -201,6 +220,11 @@ export default function App() {
         )}
         <Stats s={stats} />
         <Filters ui={ui} setUi={setUi} />
+        <AttentionToggle
+          value={ui.needsAttentionOnly}
+          onChange={v => setUi(u => ({ ...u, needsAttentionOnly: v }))}
+          count={attentionCount}
+        />
         <div className="export-bar">
           <button
             className="btn"

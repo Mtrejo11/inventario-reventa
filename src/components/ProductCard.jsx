@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { money } from '../lib/utils.js';
 import { exportSingleProductAsZip } from '../lib/exportZip.js';
+import { needsAttention } from '../lib/needsAttention.js';
 
 export default function ProductCard({ item, onEdit, onDelete, onSell, onUnsell, onPromo, onViewPromos, onToast }) {
   const [downloading, setDownloading] = useState(false);
@@ -26,6 +27,8 @@ export default function ProductCard({ item, onEdit, onDelete, onSell, onUnsell, 
       document.removeEventListener('keydown', onKey);
     };
   }, [menuOpen]);
+
+  const flagged = needsAttention(item);
 
   const hasAnyPhoto = !!item.photo_url
     || (Array.isArray(item.extra_photo_urls) && item.extra_photo_urls.length > 0)
@@ -62,6 +65,9 @@ export default function ProductCard({ item, onEdit, onDelete, onSell, onUnsell, 
         <span className={'badge ' + (item.sold ? 'sold' : 'available')}>
           {item.sold ? 'Vendido' : 'Disponible'}
         </span>
+        {flagged && (
+          <span className="badge attention" aria-label="Necesita atención" title="Necesita atención">⚠</span>
+        )}
         {item.photo_url && (
           <button
             className="promo-fab"
